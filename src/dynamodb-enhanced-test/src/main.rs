@@ -1,5 +1,4 @@
-use dynamodb_enhanced::{Item, Table};
-use dynamodb_enhanced_derive::{item, table};
+use dynamodb_enhanced::prelude::*;
 
 #[item]
 struct Car {
