@@ -1,0 +1,9 @@
+[package]
+name = "dynamodb-enhanced"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+aws-sdk-dynamodb = "1.103.0"
+aws-smithy-runtime-api = "1.11.3"
+dynamodb-enhanced-derive = { version = "0.1.0", path = "../dynamodb-enhanced-derive" }
