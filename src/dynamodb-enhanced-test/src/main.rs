@@ -2,23 +2,19 @@ use dynamodb_enhanced::prelude::*;
 
 #[nested_item]
 struct Production {
-    #[attribute(name = "Began")]
     began: i32,
-    #[attribute(name = "Units")]
+    #[attribute(name = "units_produced")]
     units: i64,
 }
 
 #[item]
 struct Car {
-    #[hash_key(name = "Make")]
+    #[hash_key]
     make: String,
-    #[sort_key(name = "Model")]
+    #[sort_key]
     model: String,
-    #[attribute(name = "Horsepower")]
     hp: i16,
-    #[attribute(name = "Production")]
     production: Production,
-    #[attribute(name = "Variants")]
     variants: Vec<String>,
 }
 

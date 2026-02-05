@@ -171,39 +171,47 @@ impl From<&mut DeriveInput> for ItemDefinition {
                 Type::Path(path) => path,
                 _ => panic!("Unknown path type"),
             };
-            field.attrs.retain(|attr_def| {
-                let field_name = field.ident.as_ref().unwrap().to_string();
-                let mut attrs = extract_attributes(attr_def);
-                let attr_name = attrs.remove("name").unwrap_or_else(|| field_name);
-                let ty = field.ty.clone();
-                let typ_ident = path.path.segments.first().unwrap().ident.clone();
-                let typ = path.path.segments.first().unwrap().ident.to_string();
-                let create_item_attribute = || ItemAttribute {
-                    ident: field.ident.clone().unwrap(),
-                    attr_name,
-                    ty,
-                    typ,
-                    typ_ident,
-                };
 
-                if attr_def.path().is_ident("hash_key") {
-                    if hash_key.is_some() {
-                        panic!("Multiple attributes with #[hash_key]");
-                    }
-                    hash_key = Some(create_item_attribute());
-                    false
-                } else if attr_def.path().is_ident("sort_key") {
-                    if sort_key.is_some() {
-                        panic!("Multiple attributes with #[sort_key]");
-                    }
-                    sort_key = Some(create_item_attribute());
-                    false
-                } else if attr_def.path().is_ident("attribute") {
-                    other_attributes.push(create_item_attribute());
-                    false
-                } else {
-                    true
-                }
+            let hash = field.attrs.iter().find(|a| a.path().is_ident("hash_key"));
+            let sort = field.attrs.iter().find(|a| a.path().is_ident("sort_key"));
+            let attribute = field.attrs.iter().find(|a| a.path().is_ident("attribute"));
+
+            if hash.is_some() && hash_key.is_some() {
+                panic!("Multiple attributes with #[hash_key]");
+            } else if sort.is_some() && sort_key.is_some() {
+                panic!("Multiple attributes with #[sort_key]");
+            }
+
+            let field_name = field.ident.as_ref().unwrap().to_string();
+            let source = hash.or(sort).or(attribute);
+            let attr_name = source
+                .map(extract_attributes)
+                .and_then(|mut a| a.remove("name"))
+                .unwrap_or(field_name);
+
+            let ty = field.ty.clone();
+            let typ_ident = path.path.segments.first().unwrap().ident.clone();
+            let typ = path.path.segments.first().unwrap().ident.to_string();
+            let item_attribute = ItemAttribute {
+                ident: field.ident.clone().unwrap(),
+                attr_name,
+                ty,
+                typ,
+                typ_ident,
+            };
+
+            if hash.is_some() {
+                hash_key = Some(item_attribute);
+            } else if sort.is_some() {
+                sort_key = Some(item_attribute);
+            } else {
+                other_attributes.push(item_attribute);
+            }
+
+            field.attrs.retain(|attr_def| {
+                !attr_def.path().is_ident("hash_key")
+                    && !attr_def.path().is_ident("sort_key")
+                    && !attr_def.path().is_ident("attribute")
             });
         }
 
@@ -272,27 +280,30 @@ impl From<&mut DeriveInput> for NestedItemDefinition {
                 Type::Path(path) => path,
                 _ => panic!("Unknown path type"),
             };
-            field.attrs.retain(|attr_def| {
-                let field_name = field.ident.as_ref().unwrap().to_string();
-                let mut attrs = extract_attributes(attr_def);
-                let attr_name = attrs.remove("name").unwrap_or_else(|| field_name);
-                let ty = field.ty.clone();
-                let typ_ident = path.path.segments.first().unwrap().ident.clone();
-                let typ = path.path.segments.first().unwrap().ident.to_string();
 
-                if attr_def.path().is_ident("attribute") {
-                    attributes.push(ItemAttribute {
-                        ident: field.ident.clone().unwrap(),
-                        attr_name,
-                        ty,
-                        typ,
-                        typ_ident,
-                    });
-                    false
-                } else {
-                    true
-                }
-            });
+            let field_name = field.ident.as_ref().unwrap().to_string();
+            let attribute = field.attrs.iter().find(|a| a.path().is_ident("attribute"));
+            let attr_name = attribute
+                .map(extract_attributes)
+                .and_then(|mut a| a.remove("name"))
+                .unwrap_or(field_name);
+
+            let ty = field.ty.clone();
+            let typ_ident = path.path.segments.first().unwrap().ident.clone();
+            let typ = path.path.segments.first().unwrap().ident.to_string();
+            let item_attribute = ItemAttribute {
+                ident: field.ident.clone().unwrap(),
+                attr_name,
+                ty,
+                typ,
+                typ_ident,
+            };
+
+            attributes.push(item_attribute);
+
+            field
+                .attrs
+                .retain(|attr_def| !attr_def.path().is_ident("attribute"));
         }
 
         NestedItemDefinition { attributes }
