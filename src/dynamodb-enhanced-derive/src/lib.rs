@@ -2,13 +2,15 @@ use proc_macro::TokenStream;
 use quote::quote;
 use std::collections::HashMap;
 use syn::{
-    Attribute, Data, DeriveInput, Expr, Field, Fields, Ident, Lit, Meta, MetaNameValue, Token,
-    Type, parse::Parser, parse_macro_input, parse_quote, punctuated::Punctuated,
+    Attribute, Data, DeriveInput, Expr, Field, Fields, GenericArgument, Ident, Lit, Meta,
+    MetaNameValue, PathArguments, Token, Type, parse::Parser, parse_macro_input, parse_quote,
+    punctuated::Punctuated,
 };
 
 struct ItemAttribute {
     ident: Ident,
     attr_name: String,
+    ty: Type,
     typ: String,
     typ_ident: Ident,
 }
@@ -19,11 +21,60 @@ struct ItemDefinition {
     other_attributes: Vec<ItemAttribute>,
 }
 
+struct NestedItemDefinition {
+    attributes: Vec<ItemAttribute>,
+}
+
 impl ItemAttribute {
+    fn box_unbox_inner(ident: &Ident, typ: &mut Vec<String>) -> (Expr, Expr) {
+        match typ.remove(0).as_str() {
+            "i8" | "i16" | "i32" | "i64" | "i128" | "u8" | "u16" | "u32" | "u64" | "u128" => (
+                parse_quote! {
+                    ::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::AttributeValue::N(#ident.to_string())
+                },
+                parse_quote! {
+                    #ident.parse().unwrap()
+                },
+            ),
+            "String" => (
+                parse_quote! {
+                    ::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::AttributeValue::S(#ident.to_string())
+                },
+                parse_quote! {
+                    #ident.as_s().unwrap().to_string()
+                },
+            ),
+            "Vec" => {
+                let (rec_box, rec_unbox) = ItemAttribute::box_unbox_inner(ident, typ);
+                (
+                    parse_quote! {
+                        ::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::AttributeValue::L(
+                            #ident.iter().map(|#ident| #rec_box).collect()
+                        )
+                    },
+                    parse_quote! {
+                        #ident.as_l().unwrap().iter().map(|#ident| #rec_unbox).collect()
+                    },
+                )
+            }
+            // We assume this is a struct if it's otherwise not recognized
+            _ => (
+                parse_quote! {
+                    ::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::AttributeValue::M(#ident.into())
+                },
+                parse_quote! {
+                    #ident.into()
+                },
+            ),
+        }
+    }
+
     fn box_unbox(&self) -> (Expr, Expr) {
         let attr_name = &self.attr_name;
         let field_ident = &self.ident;
-        match self.typ.as_str() {
+        let mut typ: Vec<String> = vec![];
+        collect_type_idents(&self.ty, &mut typ);
+        match typ.remove(0).as_str() {
             "i8" | "i16" | "i32" | "i64" | "i128" | "u8" | "u16" | "u32" | "u64" | "u128" => (
                 parse_quote! {
                     ::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::AttributeValue::N(self.#field_ident.to_string())
@@ -40,7 +91,29 @@ impl ItemAttribute {
                     map.get(#attr_name).unwrap().as_s().unwrap().to_string()
                 },
             ),
-            _ => panic!("Unknown variable type: {}", self.typ.as_str()),
+            "Vec" => {
+                let e = parse_quote!(e);
+                let (rec_box, rec_unbox) = ItemAttribute::box_unbox_inner(&e, &mut typ);
+                (
+                    parse_quote! {
+                        ::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::AttributeValue::L(
+                            self.#field_ident.iter().map(|#e| #rec_box).collect()
+                        )
+                    },
+                    parse_quote! {
+                        map.get(#attr_name).unwrap().as_l().unwrap().iter().map(|#e| #rec_unbox).collect()
+                    },
+                )
+            }
+            // We assume this is a struct if it's otherwise not recognized
+            _ => (
+                parse_quote! {
+                    ::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::AttributeValue::M(self.#field_ident.into())
+                },
+                parse_quote! {
+                    map.get(#attr_name).unwrap().as_m().unwrap().into()
+                },
+            ),
         }
     }
 
@@ -55,7 +128,10 @@ impl ItemAttribute {
             "String" => parse_quote! {
                 ::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::AttributeValue::S(#field_ident.to_string())
             },
-            _ => panic!("Unknown variable type: {}", self.typ.as_str()),
+            _ => panic!(
+                "Type cannot be used for a DynamoDB key (S, N, B only): {}",
+                self.typ.as_str()
+            ),
         }
     }
 
@@ -67,7 +143,10 @@ impl ItemAttribute {
             "String" => {
                 parse_quote! {::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::ScalarAttributeType::S}
             }
-            _ => panic!("Unknown variable type: {}", self.typ.as_str()),
+            _ => {
+                println!("{:#?}", self.typ_ident);
+                panic!("Unknown variable type: {}", self.typ.as_str());
+            }
         }
     }
 }
@@ -96,11 +175,13 @@ impl From<&mut DeriveInput> for ItemDefinition {
                 let field_name = field.ident.as_ref().unwrap().to_string();
                 let mut attrs = extract_attributes(attr_def);
                 let attr_name = attrs.remove("name").unwrap_or_else(|| field_name);
+                let ty = field.ty.clone();
                 let typ_ident = path.path.segments.first().unwrap().ident.clone();
                 let typ = path.path.segments.first().unwrap().ident.to_string();
                 let create_item_attribute = || ItemAttribute {
                     ident: field.ident.clone().unwrap(),
                     attr_name,
+                    ty,
                     typ,
                     typ_ident,
                 };
@@ -155,6 +236,67 @@ fn extract_attributes(attr: &Attribute) -> HashMap<String, String> {
             });
     }
     map
+}
+
+fn collect_type_idents(ty: &Type, idents: &mut Vec<String>) {
+    if let Type::Path(type_path) = ty {
+        for segment in &type_path.path.segments {
+            idents.push(segment.ident.to_string());
+
+            if let PathArguments::AngleBracketed(args) = &segment.arguments {
+                for arg in &args.args {
+                    if let GenericArgument::Type(inner_ty) = arg {
+                        collect_type_idents(inner_ty, idents);
+                    }
+                }
+            }
+        }
+    }
+}
+
+impl From<&mut DeriveInput> for NestedItemDefinition {
+    fn from(ast: &mut DeriveInput) -> Self {
+        let data_struct = match &mut ast.data {
+            Data::Struct(data_struct) => data_struct,
+            _ => panic!("Only structs are supported"),
+        };
+        let fields_named = match &mut data_struct.fields {
+            Fields::Named(fields_named) => fields_named,
+            _ => panic!("Only named fields are supported"),
+        };
+
+        let mut attributes = vec![];
+
+        for field in &mut fields_named.named {
+            let path = match &field.ty {
+                Type::Path(path) => path,
+                _ => panic!("Unknown path type"),
+            };
+            field.attrs.retain(|attr_def| {
+                let field_name = field.ident.as_ref().unwrap().to_string();
+                let mut attrs = extract_attributes(attr_def);
+                let attr_name = attrs.remove("name").unwrap_or_else(|| field_name);
+                let ty = field.ty.clone();
+                let typ_ident = path.path.segments.first().unwrap().ident.clone();
+                let typ = path.path.segments.first().unwrap().ident.to_string();
+
+                if attr_def.path().is_ident("attribute") {
+                    attributes.push(ItemAttribute {
+                        ident: field.ident.clone().unwrap(),
+                        attr_name,
+                        ty,
+                        typ,
+                        typ_ident,
+                    });
+                    false
+                } else {
+                    true
+                }
+            });
+        }
+
+        NestedItemDefinition { attributes }
+    }
 }
 
 #[proc_macro_attribute]
@@ -270,6 +412,53 @@ pub fn item(_args: TokenStream, input: TokenStream) -> TokenStream {
                             .unwrap()
                     ),*
                 ]
+            }
+        }
+    }.into()
+}
+
+#[proc_macro_attribute]
+pub fn nested_item(_args: TokenStream, input: TokenStream) -> TokenStream {
+    let mut input = parse_macro_input!(input as DeriveInput);
+    let name = &input.ident.clone();
+    let def: NestedItemDefinition = (&mut input).into();
+
+    let mut attr_ident: Vec<Ident> = vec![];
+    let mut attr_name: Vec<String> = vec![];
+    let mut attr_boxer: Vec<Expr> = vec![];
+    let mut attr_unboxer: Vec<Expr> = vec![];
+    let mut attr_typ_ident: Vec<Ident> = vec![];
+
+    let mut append = |i: ItemAttribute| {
+        let (boxer, unboxer) = i.box_unbox();
+        attr_boxer.push(boxer);
+        attr_unboxer.push(unboxer);
+        attr_ident.push(i.ident);
+        attr_name.push(i.attr_name);
+        attr_typ_ident.push(i.typ_ident);
+    };
+
+    def.attributes.into_iter().for_each(|e| append(e));
+
+    quote! {
+        #[derive(Debug)]
+        #input
+
+        impl From<&::std::collections::HashMap<String, ::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::AttributeValue>> for #name {
+            fn from(map: &::std::collections::HashMap<String, ::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::AttributeValue>) -> Self {
+                #name {
+                    #( #attr_ident: #attr_unboxer ),*
+                }
+            }
+        }
+
+        impl Into<::std::collections::HashMap<String, ::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::AttributeValue>> for #name {
+            fn into(self) -> ::std::collections::HashMap<String, ::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::AttributeValue> {
+                let mut map = ::std::collections::HashMap::new();
+                #(
+                    map.insert(#attr_name.to_string(), #attr_boxer);
+                )*
+                map
             }
         }
     }.into()

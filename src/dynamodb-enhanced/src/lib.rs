@@ -1,6 +1,6 @@
 pub mod prelude {
     pub use crate::traits::{Item, NestedItem, Table};
-    pub use dynamodb_enhanced_derive::{item, table};
+    pub use dynamodb_enhanced_derive::{item, nested_item, table};
 }
 
 pub mod shim;
