@@ -46,7 +46,7 @@ async fn main() {
     table.put_item(it).await.expect("Failed to write");
 
     // Read it back!
-    let key = Car::key("Porsche".into(), "911".into());
+    let key = Car::key("Porsche", "911");
     let res = table.get_item(key).await.expect("Failed to read");
     let _: Car = res.item().unwrap().into();
 }

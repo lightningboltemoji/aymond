@@ -122,11 +122,11 @@ impl ItemAttribute {
         match self.typ.as_str() {
             "i8" | "i16" | "i32" | "i64" | "i128" | "u8" | "u16" | "u32" | "u64" | "u128" => {
                 parse_quote! {
-                    ::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::AttributeValue::N(#field_ident.to_string())
+                    ::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::AttributeValue::N(#field_ident.into().to_string())
                 }
             }
             "String" => parse_quote! {
-                ::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::AttributeValue::S(#field_ident.to_string())
+                ::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::AttributeValue::S(#field_ident.into())
             },
             _ => panic!(
                 "Type cannot be used for a DynamoDB key (S, N, B only): {}",
@@ -389,7 +389,7 @@ pub fn item(_args: TokenStream, input: TokenStream) -> TokenStream {
         impl #name {
             pub fn key(
                 #(
-                    #key_ident: #key_attr_ident
+                    #key_ident: impl Into<#key_attr_ident>
                 ),*
             ) -> ::std::collections::HashMap<String, ::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::AttributeValue> {
                 let mut map = ::std::collections::HashMap::new();
