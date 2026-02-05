@@ -10,6 +10,7 @@ struct ItemAttribute {
     ident: Ident,
     attr_name: String,
     typ: String,
+    typ_ident: Ident,
 }
 
 struct ItemDefinition {
@@ -20,15 +21,15 @@ struct ItemDefinition {
 
 impl ItemAttribute {
     fn box_unbox(&self) -> (Expr, Expr) {
-        let field_name = self.ident.to_string();
+        let attr_name = &self.attr_name;
         let field_ident = &self.ident;
         match self.typ.as_str() {
-            "i32" | "i64" | "i128" => (
+            "i8" | "i16" | "i32" | "i64" | "i128" | "u8" | "u16" | "u32" | "u64" | "u128" => (
                 parse_quote! {
                     ::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::AttributeValue::N(self.#field_ident.to_string())
                 },
                 parse_quote! {
-                    map.get(#field_name).unwrap().as_n().unwrap().parse().unwrap()
+                    map.get(#attr_name).unwrap().as_n().unwrap().parse().unwrap()
                 },
             ),
             "String" => (
@@ -36,16 +37,31 @@ impl ItemAttribute {
                     ::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::AttributeValue::S(self.#field_ident.to_string())
                 },
                 parse_quote! {
-                    map.get(#field_name).unwrap().as_s().unwrap().to_string()
+                    map.get(#attr_name).unwrap().as_s().unwrap().to_string()
                 },
             ),
             _ => panic!("Unknown variable type: {}", self.typ.as_str()),
         }
     }
 
+    fn key_boxer(&self) -> Expr {
+        let field_ident = &self.ident;
+        match self.typ.as_str() {
+            "i8" | "i16" | "i32" | "i64" | "i128" | "u8" | "u16" | "u32" | "u64" | "u128" => {
+                parse_quote! {
+                    ::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::AttributeValue::N(#field_ident.to_string())
+                }
+            }
+            "String" => parse_quote! {
+                ::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::AttributeValue::S(#field_ident.to_string())
+            },
+            _ => panic!("Unknown variable type: {}", self.typ.as_str()),
+        }
+    }
+
     fn scalar_type(&self) -> Expr {
         match self.typ.as_str() {
-            "i32" | "i64" | "i128" => {
+            "i8" | "i16" | "i32" | "i64" | "i128" | "u8" | "u16" | "u32" | "u64" | "u128" => {
                 parse_quote! {::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::ScalarAttributeType::N}
             }
             "String" => {
@@ -80,11 +96,13 @@ impl From<&mut DeriveInput> for ItemDefinition {
                 let field_name = field.ident.as_ref().unwrap().to_string();
                 let mut attrs = extract_attributes(attr_def);
                 let attr_name = attrs.remove("name").unwrap_or_else(|| field_name);
+                let typ_ident = path.path.segments.first().unwrap().ident.clone();
                 let typ = path.path.segments.first().unwrap().ident.to_string();
                 let create_item_attribute = || ItemAttribute {
                     ident: field.ident.clone().unwrap(),
                     attr_name,
                     typ,
+                    typ_ident,
                 };
 
                 if attr_def.path().is_ident("hash_key") {
@@ -157,22 +175,31 @@ pub fn item(_args: TokenStream, input: TokenStream) -> TokenStream {
     let mut attr_name: Vec<String> = vec![];
     let mut attr_boxer: Vec<Expr> = vec![];
     let mut attr_unboxer: Vec<Expr> = vec![];
+    let mut attr_typ_ident: Vec<Ident> = vec![];
+    let mut key_boxer: Vec<Expr> = vec![];
 
-    let mut append = |i: ItemAttribute| {
+    let mut append = |i: ItemAttribute, key: bool| {
         let (boxer, unboxer) = i.box_unbox();
-        attr_ident.push(i.ident);
-        attr_name.push(i.attr_name);
         attr_boxer.push(boxer);
         attr_unboxer.push(unboxer);
+        if key {
+            key_boxer.push(i.key_boxer());
+        }
+        attr_ident.push(i.ident);
+        attr_name.push(i.attr_name);
+        attr_typ_ident.push(i.typ_ident);
     };
 
     let has_sort_key = def.sort_key.is_some();
-    append(def.hash_key);
-    def.sort_key.into_iter().for_each(|e| append(e));
-    def.other_attributes.into_iter().for_each(|e| append(e));
+    append(def.hash_key, true);
+    def.sort_key.into_iter().for_each(|e| append(e, true));
+    def.other_attributes
+        .into_iter()
+        .for_each(|e| append(e, false));
 
-    // let key_ident = &attr_ident[0..(if has_sort_key { 2 } else { 1 })];
-    let key_name = &attr_name[0..(if has_sort_key { 2 } else { 1 })];
+    let key_ident = &attr_ident[0..(if has_sort_key { 2 } else { 1 })];
+    let key_attr_name = &attr_name[0..(if has_sort_key { 2 } else { 1 })];
+    let key_attr_ident = &attr_typ_ident[0..(if has_sort_key { 2 } else { 1 })];
     let key_type: Vec<Expr> = (|| {
         let mut v =
             vec![parse_quote! {::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::KeyType::Hash}];
@@ -183,10 +210,9 @@ pub fn item(_args: TokenStream, input: TokenStream) -> TokenStream {
         }
         v
     })();
-    // let key_boxer = &attr_boxer[0..(if has_sort_key { 2 } else { 1 })];
-    // let key_unboxer = &attr_unboxer[0..(if has_sort_key { 2 } else { 1 })];
 
     quote! {
+        #[derive(Debug)]
         #input
 
         impl From<&::std::collections::HashMap<String, ::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::AttributeValue>> for #name {
@@ -207,12 +233,26 @@ pub fn item(_args: TokenStream, input: TokenStream) -> TokenStream {
             }
         }
 
+        impl #name {
+            pub fn key(
+                #(
+                    #key_ident: #key_attr_ident
+                ),*
+            ) -> ::std::collections::HashMap<String, ::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::AttributeValue> {
+                let mut map = ::std::collections::HashMap::new();
+                #(
+                    map.insert(#key_attr_name.to_string(), #key_boxer);
+                )*
+                map
+            }
+        }
+
         impl Item for #name {
             fn key_schemas() -> Vec<::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::KeySchemaElement> {
                 vec![
                     #(
                         ::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::KeySchemaElement::builder()
-                            .attribute_name(#key_name)
+                            .attribute_name(#key_attr_name)
                             .key_type(#key_type)
                             .build()
                             .unwrap()
@@ -224,7 +264,7 @@ pub fn item(_args: TokenStream, input: TokenStream) -> TokenStream {
                 vec![
                     #(
                         ::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::AttributeDefinition::builder()
-                            .attribute_name(#key_name)
+                            .attribute_name(#key_attr_name)
                             .attribute_type(#key_scalar_type)
                             .build()
                             .unwrap()
@@ -257,6 +297,7 @@ pub fn table(args: TokenStream, input: TokenStream) -> TokenStream {
 
     let name = &input.ident;
     quote! {
+        #[derive(Debug)]
         #input
 
         impl Table<#typ> for #name {
@@ -327,6 +368,23 @@ pub fn table(args: TokenStream, input: TokenStream) -> TokenStream {
                     }
                     _ => Ok(())
                 }
+            }
+
+            async fn get_item(
+                &self,
+                key: ::std::collections::HashMap<String, ::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::AttributeValue>
+            ) -> Result<
+                ::dynamodb_enhanced::shim::aws_sdk_dynamodb::operation::get_item::GetItemOutput,
+                ::dynamodb_enhanced::shim::aws_sdk_dynamodb::error::SdkError<
+                    ::dynamodb_enhanced::shim::aws_sdk_dynamodb::operation::get_item::GetItemError,
+                    ::dynamodb_enhanced::shim::aws_sdk_dynamodb::config::http::HttpResponse
+                >
+            > {
+                self.client.get_item()
+                    .table_name(&self.table_name)
+                    .set_key(Some(key))
+                    .send()
+                    .await
             }
 
             async fn put_item(&self, t: #typ) -> Result<

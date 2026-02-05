@@ -3,11 +3,17 @@ use aws_sdk_dynamodb::{
     error::SdkError,
     operation::{
         create_table::CreateTableError,
+        get_item::{GetItemError, GetItemOutput},
         put_item::{PutItemError, PutItemOutput},
     },
     types::{AttributeDefinition, AttributeValue, KeySchemaElement},
 };
 use std::{collections::HashMap, sync::Arc};
+
+pub trait NestedItem:
+    for<'a> From<&'a HashMap<String, AttributeValue>> + Into<HashMap<String, AttributeValue>>
+{
+}
 
 pub trait Item:
     for<'a> From<&'a HashMap<String, AttributeValue>> + Into<HashMap<String, AttributeValue>>
@@ -43,6 +49,11 @@ where
         &self,
         err_if_exists: bool,
     ) -> impl Future<Output = Result<(), SdkError<CreateTableError, HttpResponse>>> + Send;
+
+    fn get_item(
+        &self,
+        key: HashMap<String, AttributeValue>,
+    ) -> impl Future<Output = Result<GetItemOutput, SdkError<GetItemError, HttpResponse>>> + Send;
 
     fn put_item(
         &self,

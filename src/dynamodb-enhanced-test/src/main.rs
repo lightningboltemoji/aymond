@@ -24,4 +24,7 @@ async fn main() {
         hp: 518,
     };
     table.put_item(it).await.unwrap();
+
+    let key = Car::key("Porsche".into(), "911".into());
+    table.get_item(key).await.unwrap();
 }
