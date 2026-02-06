@@ -11,7 +11,7 @@ Item shapes and table schemas are described by structs.
 * The `table` macro will generate high-level client methods (e.g. get, put).
 
 ```rust
-use dynamodb_enhanced::prelude::*;
+use aymond::prelude::*;
 
 #[nested_item]
 struct Production {
@@ -75,7 +75,7 @@ let _: Car = res.item().unwrap().into();
     <summary>Full example</summary>
 
 ```rust
-use dynamodb_enhanced::prelude::*;
+use aymond::prelude::*;
 
 #[nested_item]
 struct Production {
