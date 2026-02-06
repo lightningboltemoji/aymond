@@ -3,8 +3,8 @@ use aws_sdk_dynamodb::{
     error::SdkError,
     operation::{
         create_table::CreateTableError,
-        get_item::{GetItemError, GetItemOutput},
-        put_item::{PutItemError, PutItemOutput},
+        get_item::{GetItemError, GetItemOutput, builders::GetItemFluentBuilder},
+        put_item::{PutItemError, PutItemOutput, builders::PutItemFluentBuilder},
     },
     types::{AttributeDefinition, AttributeValue, KeySchemaElement},
 };
@@ -50,13 +50,29 @@ where
         err_if_exists: bool,
     ) -> impl Future<Output = Result<(), SdkError<CreateTableError, HttpResponse>>> + Send;
 
+    fn get_item<F>(
+        &self,
+        key: HashMap<String, AttributeValue>,
+        f: F,
+    ) -> impl Future<Output = Result<GetItemOutput, SdkError<GetItemError, HttpResponse>>>
+    where
+        F: FnOnce(GetItemFluentBuilder) -> GetItemFluentBuilder;
+
     fn get(
         &self,
         key: HashMap<String, AttributeValue>,
-    ) -> impl Future<Output = Result<GetItemOutput, SdkError<GetItemError, HttpResponse>>> + Send;
+    ) -> impl Future<Output = Result<Option<T>, SdkError<GetItemError, HttpResponse>>> + Send;
+
+    fn put_item<F>(
+        &self,
+        t: T,
+        f: F,
+    ) -> impl Future<Output = Result<PutItemOutput, SdkError<PutItemError, HttpResponse>>>
+    where
+        F: FnOnce(PutItemFluentBuilder) -> PutItemFluentBuilder;
 
     fn put(
         &self,
         t: T,
-    ) -> impl Future<Output = Result<PutItemOutput, SdkError<PutItemError, HttpResponse>>> + Send;
+    ) -> impl Future<Output = Result<(), SdkError<PutItemError, HttpResponse>>> + Send;
 }

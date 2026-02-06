@@ -1,6 +1,6 @@
 [package]
 name = "aymond"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Tanner <t@nner.xyz>"]
 description = "A batteries-included client wrapper for DynamoDB"
 readme = "../README.md"

@@ -47,6 +47,9 @@ async fn main() {
 
     // Read it back!
     let key = Car::key("Porsche", "911");
-    let res = table.get(key).await.expect("Failed to read");
-    let _: Car = res.item().unwrap().into();
+    let _: Option<Car> = table.get(key.clone()).await.expect("Failed to read");
+
+    // Read it back, with additional options
+    let res: Result<_, _> = table.get_item(key, |r| r.consistent_read(true)).await;
+    let _: Option<Car> = res.ok().and_then(|e| e.item().map(|i| i.into()));
 }

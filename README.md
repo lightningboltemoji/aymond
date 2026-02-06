@@ -35,14 +35,14 @@ struct Car {
 struct CarTable {}
 ```
 
-To use what we've created, we construct a table instance. The appropriate CreateTable request is automatically generated based on our item schema.
+Interacting with the table is done through a `Table` instance. The appropriate CreateTable request is automatically generated based on the item schema.
 
 ```rust
 let table = CarTable::new_with_local_config("test", "http://localhost:8000", "us-west-2");
 table.create(false).await.expect("Failed to create");
 ```
 
-To write an item, we call put.
+Writing an item with `put`
 
 ```rust
 let it = Car {
@@ -63,12 +63,11 @@ let it = Car {
 table.put(it).await.expect("Failed to write");
 ```
 
-To read it back, we can call get with the primary key. A key function is automatically created based on item schema.
+Reading an item with `get`. A key function is automatically created based on item schema.
 
 ```rust
 let key = Car::key("Porsche", "911");
-let res = table.get(key).await.expect("Failed to read");
-let _: Car = res.item().unwrap().into();
+let _: Option<Car> = table.get(key.clone()).await.expect("Failed to read");
 ```
 
 <details>
@@ -124,8 +123,7 @@ async fn main() {
 
     // Read it back!
     let key = Car::key("Porsche", "911");
-    let res = table.get(key).await.expect("Failed to read");
-    let _: Car = res.item().unwrap().into();
+    let _: Option<Car> = table.get(key.clone()).await.expect("Failed to read");
 }
 ```
 </details>

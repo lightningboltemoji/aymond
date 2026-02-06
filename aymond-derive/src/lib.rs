@@ -2,9 +2,9 @@ use proc_macro::TokenStream;
 use quote::quote;
 use std::collections::HashMap;
 use syn::{
-    parse::Parser, parse_macro_input, parse_quote, punctuated::Punctuated, Attribute, Data,
-    DeriveInput, Expr, Field, Fields, GenericArgument, Ident, Lit, Meta, MetaNameValue,
-    PathArguments, Token, Type,
+    Attribute, Data, DeriveInput, Expr, Field, Fields, GenericArgument, Ident, Lit, Meta,
+    MetaNameValue, PathArguments, Token, Type, parse::Parser, parse_macro_input, parse_quote,
+    punctuated::Punctuated,
 };
 
 struct ItemAttribute {
@@ -120,10 +120,11 @@ impl ItemAttribute {
     fn key_boxer(&self) -> Expr {
         let field_ident = &self.ident;
         match self.typ.as_str() {
-            "i8" | "i16" | "i32" | "i64" | "i128" | "u8" | "u16" | "u32" | "u64" | "u128" =>
+            "i8" | "i16" | "i32" | "i64" | "i128" | "u8" | "u16" | "u32" | "u64" | "u128" => {
                 parse_quote! {
                     ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue::N(#field_ident.into().to_string())
-                },
+                }
+            }
             "String" => parse_quote! {
                 ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue::S(#field_ident.into())
             },
@@ -488,13 +489,13 @@ pub fn table(args: TokenStream, input: TokenStream) -> TokenStream {
             );
             fields.named.push(
                 Field::parse_named
-                    .parse2(quote! { table_name: String }).unwrap(),
+                    .parse2(quote! { table_name: String })
+                    .unwrap(),
             );
         }
     }
 
     let name = &input.ident;
-
 
     quote! {
         #[derive(Debug)]
@@ -570,35 +571,64 @@ pub fn table(args: TokenStream, input: TokenStream) -> TokenStream {
                 }
             }
 
-            async fn get(
+            async fn get_item<F>(
                 &self,
-                key: ::std::collections::HashMap<String, #aws_sdk_dynamodb::types::AttributeValue>
+                key: ::std::collections::HashMap<String, #aws_sdk_dynamodb::types::AttributeValue>,
+                f: F
             ) -> Result<
                 #aws_sdk_dynamodb::operation::get_item::GetItemOutput,
                 #aws_sdk_dynamodb::error::SdkError<
                     #aws_sdk_dynamodb::operation::get_item::GetItemError,
                     #aws_sdk_dynamodb::config::http::HttpResponse
                 >
-            > {
-                self.client.get_item()
+            >
+                where F: FnOnce(#aws_sdk_dynamodb::operation::get_item::builders::GetItemFluentBuilder)
+                    -> #aws_sdk_dynamodb::operation::get_item::builders::GetItemFluentBuilder
+            {
+                f(self.client.get_item())
                     .table_name(&self.table_name)
                     .set_key(Some(key))
                     .send()
                     .await
             }
 
-            async fn put(&self, t: #typ) -> Result<
+            async fn get(&self, key: ::std::collections::HashMap<String, #aws_sdk_dynamodb::types::AttributeValue>) -> Result<
+                Option<#typ>,
+                #aws_sdk_dynamodb::error::SdkError<
+                    #aws_sdk_dynamodb::operation::get_item::GetItemError,
+                    #aws_sdk_dynamodb::config::http::HttpResponse
+                >
+            > {
+                let res = self.get_item(key, |r| r).await?;
+                Ok(res.item().map(|e| e.into()))
+            }
+
+            async fn put_item<F>(&self, t: #typ, f: F) -> Result<
                 #aws_sdk_dynamodb::operation::put_item::PutItemOutput,
                 #aws_sdk_dynamodb::error::SdkError<
                     #aws_sdk_dynamodb::operation::put_item::PutItemError,
                     #aws_sdk_dynamodb::config::http::HttpResponse
                 >
-            > {
-                self.client.put_item()
+            >
+                where F: FnOnce(#aws_sdk_dynamodb::operation::put_item::builders::PutItemFluentBuilder)
+                    -> #aws_sdk_dynamodb::operation::put_item::builders::PutItemFluentBuilder
+            {
+                f(self.client.put_item())
                     .table_name(&self.table_name)
                     .set_item(Some(t.into()))
                     .send()
                     .await
+            }
+
+            async fn put(&self, t: #typ) -> Result<
+                (),
+                #aws_sdk_dynamodb::error::SdkError<
+                    #aws_sdk_dynamodb::operation::put_item::PutItemError,
+                    #aws_sdk_dynamodb::config::http::HttpResponse
+                >
+            > {
+                self.put_item(t, |r| r).await?;
+                Ok(())
             }
         }
     }
