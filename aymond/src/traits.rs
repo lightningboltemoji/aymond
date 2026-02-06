@@ -45,17 +45,17 @@ where
         client: Arc<aws_sdk_dynamodb::Client>,
     ) -> Self;
 
-    fn create_table(
+    fn create(
         &self,
         err_if_exists: bool,
     ) -> impl Future<Output = Result<(), SdkError<CreateTableError, HttpResponse>>> + Send;
 
-    fn get_item(
+    fn get(
         &self,
         key: HashMap<String, AttributeValue>,
     ) -> impl Future<Output = Result<GetItemOutput, SdkError<GetItemError, HttpResponse>>> + Send;
 
-    fn put_item(
+    fn put(
         &self,
         t: T,
     ) -> impl Future<Output = Result<PutItemOutput, SdkError<PutItemError, HttpResponse>>> + Send;

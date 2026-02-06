@@ -2,9 +2,9 @@ use proc_macro::TokenStream;
 use quote::quote;
 use std::collections::HashMap;
 use syn::{
-    Attribute, Data, DeriveInput, Expr, Field, Fields, GenericArgument, Ident, Lit, Meta,
-    MetaNameValue, PathArguments, Token, Type, parse::Parser, parse_macro_input, parse_quote,
-    punctuated::Punctuated,
+    parse::Parser, parse_macro_input, parse_quote, punctuated::Punctuated, Attribute, Data,
+    DeriveInput, Expr, Field, Fields, GenericArgument, Ident, Lit, Meta, MetaNameValue,
+    PathArguments, Token, Type,
 };
 
 struct ItemAttribute {
@@ -30,7 +30,7 @@ impl ItemAttribute {
         match typ.remove(0).as_str() {
             "i8" | "i16" | "i32" | "i64" | "i128" | "u8" | "u16" | "u32" | "u64" | "u128" => (
                 parse_quote! {
-                    ::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::AttributeValue::N(#ident.to_string())
+                    ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue::N(#ident.to_string())
                 },
                 parse_quote! {
                     #ident.parse().unwrap()
@@ -38,7 +38,7 @@ impl ItemAttribute {
             ),
             "String" => (
                 parse_quote! {
-                    ::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::AttributeValue::S(#ident.to_string())
+                    ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue::S(#ident.to_string())
                 },
                 parse_quote! {
                     #ident.as_s().unwrap().to_string()
@@ -48,7 +48,7 @@ impl ItemAttribute {
                 let (rec_box, rec_unbox) = ItemAttribute::box_unbox_inner(ident, typ);
                 (
                     parse_quote! {
-                        ::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::AttributeValue::L(
+                        ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue::L(
                             #ident.iter().map(|#ident| #rec_box).collect()
                         )
                     },
@@ -60,7 +60,7 @@ impl ItemAttribute {
             // We assume this is a struct if it's otherwise not recognized
             _ => (
                 parse_quote! {
-                    ::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::AttributeValue::M(#ident.into())
+                    ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue::M(#ident.into())
                 },
                 parse_quote! {
                     #ident.into()
@@ -77,7 +77,7 @@ impl ItemAttribute {
         match typ.remove(0).as_str() {
             "i8" | "i16" | "i32" | "i64" | "i128" | "u8" | "u16" | "u32" | "u64" | "u128" => (
                 parse_quote! {
-                    ::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::AttributeValue::N(self.#field_ident.to_string())
+                    ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue::N(self.#field_ident.to_string())
                 },
                 parse_quote! {
                     map.get(#attr_name).unwrap().as_n().unwrap().parse().unwrap()
@@ -85,7 +85,7 @@ impl ItemAttribute {
             ),
             "String" => (
                 parse_quote! {
-                    ::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::AttributeValue::S(self.#field_ident.to_string())
+                    ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue::S(self.#field_ident.to_string())
                 },
                 parse_quote! {
                     map.get(#attr_name).unwrap().as_s().unwrap().to_string()
@@ -96,7 +96,7 @@ impl ItemAttribute {
                 let (rec_box, rec_unbox) = ItemAttribute::box_unbox_inner(&e, &mut typ);
                 (
                     parse_quote! {
-                        ::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::AttributeValue::L(
+                        ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue::L(
                             self.#field_ident.iter().map(|#e| #rec_box).collect()
                         )
                     },
@@ -108,7 +108,7 @@ impl ItemAttribute {
             // We assume this is a struct if it's otherwise not recognized
             _ => (
                 parse_quote! {
-                    ::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::AttributeValue::M(self.#field_ident.into())
+                    ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue::M(self.#field_ident.into())
                 },
                 parse_quote! {
                     map.get(#attr_name).unwrap().as_m().unwrap().into()
@@ -120,13 +120,12 @@ impl ItemAttribute {
     fn key_boxer(&self) -> Expr {
         let field_ident = &self.ident;
         match self.typ.as_str() {
-            "i8" | "i16" | "i32" | "i64" | "i128" | "u8" | "u16" | "u32" | "u64" | "u128" => {
+            "i8" | "i16" | "i32" | "i64" | "i128" | "u8" | "u16" | "u32" | "u64" | "u128" =>
                 parse_quote! {
-                    ::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::AttributeValue::N(#field_ident.into().to_string())
-                }
-            }
+                    ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue::N(#field_ident.into().to_string())
+                },
             "String" => parse_quote! {
-                ::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::AttributeValue::S(#field_ident.into())
+                ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue::S(#field_ident.into())
             },
             _ => panic!(
                 "Type cannot be used for a DynamoDB key (S, N, B only): {}",
@@ -138,15 +137,12 @@ impl ItemAttribute {
     fn scalar_type(&self) -> Expr {
         match self.typ.as_str() {
             "i8" | "i16" | "i32" | "i64" | "i128" | "u8" | "u16" | "u32" | "u64" | "u128" => {
-                parse_quote! {::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::ScalarAttributeType::N}
+                parse_quote! {::aymond::shim::aws_sdk_dynamodb::types::ScalarAttributeType::N}
             }
             "String" => {
-                parse_quote! {::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::ScalarAttributeType::S}
+                parse_quote! {::aymond::shim::aws_sdk_dynamodb::types::ScalarAttributeType::S}
             }
-            _ => {
-                println!("{:#?}", self.typ_ident);
-                panic!("Unknown variable type: {}", self.typ.as_str());
-            }
+            _ => panic!("Unknown variable type: {}", self.typ.as_str()),
         }
     }
 }
@@ -312,6 +308,8 @@ impl From<&mut DeriveInput> for NestedItemDefinition {
 
 #[proc_macro_attribute]
 pub fn item(_args: TokenStream, input: TokenStream) -> TokenStream {
+    let aws_sdk_dynamodb: Expr = parse_quote!(::aymond::shim::aws_sdk_dynamodb);
+
     let mut input = parse_macro_input!(input as DeriveInput);
     // println!("{:#?}", input);
     let name = &input.ident.clone();
@@ -354,12 +352,9 @@ pub fn item(_args: TokenStream, input: TokenStream) -> TokenStream {
     let key_attr_name = &attr_name[0..(if has_sort_key { 2 } else { 1 })];
     let key_attr_ident = &attr_typ_ident[0..(if has_sort_key { 2 } else { 1 })];
     let key_type: Vec<Expr> = (|| {
-        let mut v =
-            vec![parse_quote! {::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::KeyType::Hash}];
+        let mut v = vec![parse_quote! {#aws_sdk_dynamodb::types::KeyType::Hash}];
         if has_sort_key {
-            v.push(
-                parse_quote! {::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::KeyType::Range},
-            );
+            v.push(parse_quote! {#aws_sdk_dynamodb::types::KeyType::Range});
         }
         v
     })();
@@ -368,16 +363,16 @@ pub fn item(_args: TokenStream, input: TokenStream) -> TokenStream {
         #[derive(Debug)]
         #input
 
-        impl From<&::std::collections::HashMap<String, ::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::AttributeValue>> for #name {
-            fn from(map: &::std::collections::HashMap<String, ::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::AttributeValue>) -> Self {
+        impl From<&::std::collections::HashMap<String, #aws_sdk_dynamodb::types::AttributeValue>> for #name {
+            fn from(map: &::std::collections::HashMap<String, #aws_sdk_dynamodb::types::AttributeValue>) -> Self {
                 #name {
                     #( #attr_ident: #attr_unboxer ),*
                 }
             }
         }
 
-        impl Into<::std::collections::HashMap<String, ::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::AttributeValue>> for #name {
-            fn into(self) -> ::std::collections::HashMap<String, ::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::AttributeValue> {
+        impl Into<::std::collections::HashMap<String, #aws_sdk_dynamodb::types::AttributeValue>> for #name {
+            fn into(self) -> ::std::collections::HashMap<String, #aws_sdk_dynamodb::types::AttributeValue> {
                 let mut map = ::std::collections::HashMap::new();
                 #(
                     map.insert(#attr_name.to_string(), #attr_boxer);
@@ -391,7 +386,7 @@ pub fn item(_args: TokenStream, input: TokenStream) -> TokenStream {
                 #(
                     #key_ident: impl Into<#key_attr_ident>
                 ),*
-            ) -> ::std::collections::HashMap<String, ::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::AttributeValue> {
+            ) -> ::std::collections::HashMap<String, #aws_sdk_dynamodb::types::AttributeValue> {
                 let mut map = ::std::collections::HashMap::new();
                 #(
                     map.insert(#key_attr_name.to_string(), #key_boxer);
@@ -401,10 +396,10 @@ pub fn item(_args: TokenStream, input: TokenStream) -> TokenStream {
         }
 
         impl Item for #name {
-            fn key_schemas() -> Vec<::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::KeySchemaElement> {
+            fn key_schemas() -> Vec<#aws_sdk_dynamodb::types::KeySchemaElement> {
                 vec![
                     #(
-                        ::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::KeySchemaElement::builder()
+                        #aws_sdk_dynamodb::types::KeySchemaElement::builder()
                             .attribute_name(#key_attr_name)
                             .key_type(#key_type)
                             .build()
@@ -413,10 +408,10 @@ pub fn item(_args: TokenStream, input: TokenStream) -> TokenStream {
                 ]
             }
 
-            fn key_attribute_defintions() -> Vec<::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::AttributeDefinition> {
+            fn key_attribute_defintions() -> Vec<#aws_sdk_dynamodb::types::AttributeDefinition> {
                 vec![
                     #(
-                        ::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::AttributeDefinition::builder()
+                        #aws_sdk_dynamodb::types::AttributeDefinition::builder()
                             .attribute_name(#key_attr_name)
                             .attribute_type(#key_scalar_type)
                             .build()
@@ -430,6 +425,8 @@ pub fn item(_args: TokenStream, input: TokenStream) -> TokenStream {
 
 #[proc_macro_attribute]
 pub fn nested_item(_args: TokenStream, input: TokenStream) -> TokenStream {
+    let aws_sdk_dynamodb: Expr = parse_quote!(::aymond::shim::aws_sdk_dynamodb);
+
     let mut input = parse_macro_input!(input as DeriveInput);
     let name = &input.ident.clone();
     let def: NestedItemDefinition = (&mut input).into();
@@ -455,16 +452,16 @@ pub fn nested_item(_args: TokenStream, input: TokenStream) -> TokenStream {
         #[derive(Debug)]
         #input
 
-        impl From<&::std::collections::HashMap<String, ::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::AttributeValue>> for #name {
-            fn from(map: &::std::collections::HashMap<String, ::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::AttributeValue>) -> Self {
+        impl From<&::std::collections::HashMap<String, #aws_sdk_dynamodb::types::AttributeValue>> for #name {
+            fn from(map: &::std::collections::HashMap<String, #aws_sdk_dynamodb::types::AttributeValue>) -> Self {
                 #name {
                     #( #attr_ident: #attr_unboxer ),*
                 }
             }
         }
 
-        impl Into<::std::collections::HashMap<String, ::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::AttributeValue>> for #name {
-            fn into(self) -> ::std::collections::HashMap<String, ::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::AttributeValue> {
+        impl Into<::std::collections::HashMap<String, #aws_sdk_dynamodb::types::AttributeValue>> for #name {
+            fn into(self) -> ::std::collections::HashMap<String, #aws_sdk_dynamodb::types::AttributeValue> {
                 let mut map = ::std::collections::HashMap::new();
                 #(
                     map.insert(#attr_name.to_string(), #attr_boxer);
@@ -474,9 +471,11 @@ pub fn nested_item(_args: TokenStream, input: TokenStream) -> TokenStream {
         }
     }.into()
 }
-
 #[proc_macro_attribute]
 pub fn table(args: TokenStream, input: TokenStream) -> TokenStream {
+    let aws_types: Expr = parse_quote!(::aymond::shim::aws_types);
+    let aws_sdk_dynamodb: Expr = parse_quote!(::aymond::shim::aws_sdk_dynamodb);
+
     let mut input = parse_macro_input!(input as DeriveInput);
     let typ = parse_macro_input!(args as Ident);
 
@@ -484,18 +483,19 @@ pub fn table(args: TokenStream, input: TokenStream) -> TokenStream {
         if let Fields::Named(ref mut fields) = data_struct.fields {
             fields.named.push(
                 Field::parse_named
-                    .parse2(quote! { client: ::std::sync::Arc<::dynamodb_enhanced::shim::aws_sdk_dynamodb::Client> })
+                    .parse2(quote! { client: ::std::sync::Arc<#aws_sdk_dynamodb::Client> })
                     .unwrap(),
             );
             fields.named.push(
                 Field::parse_named
-                    .parse2(quote! { table_name: String })
-                    .unwrap(),
+                    .parse2(quote! { table_name: String }).unwrap(),
             );
         }
     }
 
     let name = &input.ident;
+
+
     quote! {
         #[derive(Debug)]
         #input
@@ -507,40 +507,40 @@ pub fn table(args: TokenStream, input: TokenStream) -> TokenStream {
                 endpoint_url: impl Into<String>,
                 region_name: impl Into<String>,
             ) -> Self {
-                let credentials = ::dynamodb_enhanced::shim::aws_credential_types::Credentials::from_keys("empty", "empty", None);
+                let credentials = ::aymond::shim::aws_credential_types::Credentials::from_keys("empty", "empty", None);
                 let table_name = table_name.into();
                 let endpoint_url = endpoint_url.into();
                 let region_name = region_name.into();
                 Self::new_with_config_builder(table_name, move |b| {
-                    b.credentials_provider(::dynamodb_enhanced::shim::aws_types::sdk_config::SharedCredentialsProvider::new(credentials))
-                        .region(::dynamodb_enhanced::shim::aws_types::region::Region::new(region_name))
+                    b.credentials_provider(#aws_types::sdk_config::SharedCredentialsProvider::new(credentials))
+                        .region(#aws_types::region::Region::new(region_name))
                         .endpoint_url(endpoint_url)
-                        .behavior_version(::dynamodb_enhanced::shim::aws_sdk_dynamodb::config::BehaviorVersion::latest())
+                        .behavior_version(#aws_sdk_dynamodb::config::BehaviorVersion::latest())
                 })
             }
 
             fn new_with_config_builder<F>(table_name: impl ::core::convert::Into<String>, builder: F) -> Self
             where
-                F: FnOnce(::dynamodb_enhanced::shim::aws_types::sdk_config::Builder) -> ::dynamodb_enhanced::shim::aws_types::sdk_config::Builder {
-                    let config = builder(::dynamodb_enhanced::shim::aws_types::SdkConfig::builder()).build();
+                F: FnOnce(#aws_types::sdk_config::Builder) -> #aws_types::sdk_config::Builder {
+                    let config = builder(#aws_types::SdkConfig::builder()).build();
                     Self::new_with_config(table_name, config)
                 }
 
             async fn new_with_default_config(table_name: impl ::core::convert::Into<String>) -> Self {
-                let config = ::dynamodb_enhanced::shim::aws_config::load_defaults(
-                    ::dynamodb_enhanced::shim::aws_config::BehaviorVersion::latest()
+                let config = ::aymond::shim::aws_config::load_defaults(
+                    ::aymond::shim::aws_config::BehaviorVersion::latest()
                 ).await;
                 Self::new_with_config(table_name, config)
             }
 
-            fn new_with_config(table_name: impl ::core::convert::Into<String>, config: ::dynamodb_enhanced::shim::aws_types::SdkConfig) -> Self {
-                let client = ::std::sync::Arc::new(::dynamodb_enhanced::shim::aws_sdk_dynamodb::Client::new(&config));
+            fn new_with_config(table_name: impl ::core::convert::Into<String>, config: #aws_types::SdkConfig) -> Self {
+                let client = ::std::sync::Arc::new(#aws_sdk_dynamodb::Client::new(&config));
                 Self::new_with_client(table_name, client)
             }
 
             fn new_with_client(
                 table_name: impl ::core::convert::Into<String>,
-                client: ::std::sync::Arc<::dynamodb_enhanced::shim::aws_sdk_dynamodb::Client>,
+                client: ::std::sync::Arc<#aws_sdk_dynamodb::Client>,
             ) -> Self {
                 Self {
                     client,
@@ -548,21 +548,21 @@ pub fn table(args: TokenStream, input: TokenStream) -> TokenStream {
                 }
             }
 
-            async fn create_table(&self, err_if_exists: bool) -> Result<
-                (), ::dynamodb_enhanced::shim::aws_sdk_dynamodb::error::SdkError<
-                    ::dynamodb_enhanced::shim::aws_sdk_dynamodb::operation::create_table::CreateTableError,
-                    ::dynamodb_enhanced::shim::aws_sdk_dynamodb::config::http::HttpResponse
+            async fn create(&self, err_if_exists: bool) -> Result<
+                (), #aws_sdk_dynamodb::error::SdkError<
+                    #aws_sdk_dynamodb::operation::create_table::CreateTableError,
+                    #aws_sdk_dynamodb::config::http::HttpResponse
                 >
             > {
                 let res = self.client.create_table()
                     .table_name(&self.table_name)
                     .set_key_schema(Some(#typ::key_schemas()))
                     .set_attribute_definitions(Some(#typ::key_attribute_defintions()))
-                    .billing_mode(::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::BillingMode::PayPerRequest)
+                    .billing_mode(#aws_sdk_dynamodb::types::BillingMode::PayPerRequest)
                     .send();
                 match res.await {
                     Err(e) => match e {
-                        ::dynamodb_enhanced::shim::aws_sdk_dynamodb::error::SdkError::ServiceError(ref context)
+                        #aws_sdk_dynamodb::error::SdkError::ServiceError(ref context)
                             if !err_if_exists && context.err().is_resource_in_use_exception() => Ok(()),
                         _ => Err(e)
                     }
@@ -570,14 +570,14 @@ pub fn table(args: TokenStream, input: TokenStream) -> TokenStream {
                 }
             }
 
-            async fn get_item(
+            async fn get(
                 &self,
-                key: ::std::collections::HashMap<String, ::dynamodb_enhanced::shim::aws_sdk_dynamodb::types::AttributeValue>
+                key: ::std::collections::HashMap<String, #aws_sdk_dynamodb::types::AttributeValue>
             ) -> Result<
-                ::dynamodb_enhanced::shim::aws_sdk_dynamodb::operation::get_item::GetItemOutput,
-                ::dynamodb_enhanced::shim::aws_sdk_dynamodb::error::SdkError<
-                    ::dynamodb_enhanced::shim::aws_sdk_dynamodb::operation::get_item::GetItemError,
-                    ::dynamodb_enhanced::shim::aws_sdk_dynamodb::config::http::HttpResponse
+                #aws_sdk_dynamodb::operation::get_item::GetItemOutput,
+                #aws_sdk_dynamodb::error::SdkError<
+                    #aws_sdk_dynamodb::operation::get_item::GetItemError,
+                    #aws_sdk_dynamodb::config::http::HttpResponse
                 >
             > {
                 self.client.get_item()
@@ -587,11 +587,11 @@ pub fn table(args: TokenStream, input: TokenStream) -> TokenStream {
                     .await
             }
 
-            async fn put_item(&self, t: #typ) -> Result<
-                ::dynamodb_enhanced::shim::aws_sdk_dynamodb::operation::put_item::PutItemOutput,
-                ::dynamodb_enhanced::shim::aws_sdk_dynamodb::error::SdkError<
-                    ::dynamodb_enhanced::shim::aws_sdk_dynamodb::operation::put_item::PutItemError,
-                    ::dynamodb_enhanced::shim::aws_sdk_dynamodb::config::http::HttpResponse
+            async fn put(&self, t: #typ) -> Result<
+                #aws_sdk_dynamodb::operation::put_item::PutItemOutput,
+                #aws_sdk_dynamodb::error::SdkError<
+                    #aws_sdk_dynamodb::operation::put_item::PutItemError,
+                    #aws_sdk_dynamodb::config::http::HttpResponse
                 >
             > {
                 self.client.put_item()

@@ -403,6 +403,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "aymond"
+version = "0.1.0"
+dependencies = [
+ "aws-config",
+ "aws-credential-types",
+ "aws-sdk-dynamodb",
+ "aws-types",
+ "aymond-derive",
+]
+
+[[package]]
+name = "aymond-derive"
+version = "0.1.0"
+dependencies = [
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "aymond-test"
+version = "0.1.0"
+dependencies = [
+ "aymond",
+ "aymond-derive",
+ "tokio",
+]
+
+[[package]]
 name = "base64"
 version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -553,34 +581,6 @@ name = "dunce"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "92773504d58c093f6de2459af4af33faa518c13451eb8f2b5698ed3d36e7c813"
-
-[[package]]
-name = "dynamodb-enhanced"
-version = "0.1.0"
-dependencies = [
- "aws-config",
- "aws-credential-types",
- "aws-sdk-dynamodb",
- "aws-types",
- "dynamodb-enhanced-derive",
-]
-
-[[package]]
-name = "dynamodb-enhanced-derive"
-version = "0.1.0"
-dependencies = [
- "quote",
- "syn",
-]
-
-[[package]]
-name = "dynamodb-enhanced-test"
-version = "0.1.0"
-dependencies = [
- "dynamodb-enhanced",
- "dynamodb-enhanced-derive",
- "tokio",
-]
 
 [[package]]
 name = "either"

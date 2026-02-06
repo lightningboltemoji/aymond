@@ -1,0 +1,17 @@
+[package]
+name = "aymond-derive"
+version = "0.1.0"
+authors = ["Tanner <t@nner.xyz>"]
+description = "A batteries-included client wrapper for DynamoDB"
+readme = "../README.md"
+homepage = "https://github.com/lightningboltemoji/aymond"
+repository = "https://github.com/lightningboltemoji/aymond"
+license = "MIT OR Apache-2.0"
+edition = "2024"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = "2.0"
+quote = "1.0"

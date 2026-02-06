@@ -1,4 +1,4 @@
-use dynamodb_enhanced::prelude::*;
+use aymond::prelude::*;
 
 #[nested_item]
 struct Production {
@@ -25,7 +25,7 @@ struct CarTable {}
 async fn main() {
     // Create a table in local DynamoDB, based on our item schema
     let table = CarTable::new_with_local_config("test", "http://localhost:8000", "us-west-2");
-    table.create_table(false).await.expect("Failed to create");
+    table.create(false).await.expect("Failed to create");
 
     // Write
     let it = Car {
@@ -43,10 +43,10 @@ async fn main() {
             units: 1_100_000,
         },
     };
-    table.put_item(it).await.expect("Failed to write");
+    table.put(it).await.expect("Failed to write");
 
     // Read it back!
     let key = Car::key("Porsche", "911");
-    let res = table.get_item(key).await.expect("Failed to read");
+    let res = table.get(key).await.expect("Failed to read");
     let _: Car = res.item().unwrap().into();
 }

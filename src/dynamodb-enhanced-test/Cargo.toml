@@ -1,9 +1,0 @@
-[package]
-name = "dynamodb-enhanced-test"
-version = "0.1.0"
-edition = "2024"
-
-[dependencies]
-dynamodb-enhanced = { version = "0.1.0", path = "../dynamodb-enhanced" }
-dynamodb-enhanced-derive = { version = "0.1.0", path = "../dynamodb-enhanced-derive" }
-tokio = { version = "1.49.0", features = ["full"] }
