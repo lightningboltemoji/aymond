@@ -9,6 +9,7 @@ pub fn create_table(input: &DeriveInput) -> TokenStream {
     let name = &input.ident;
     let table_struct = format_ident!("{}Table", &name);
     let query_struct = format_ident!("{}Query", &name);
+    let query_hash_key_struct = format_ident!("{}QueryHashKey", &name);
     quote! {
         #[derive(Debug)]
         struct #table_struct {
@@ -16,7 +17,7 @@ pub fn create_table(input: &DeriveInput) -> TokenStream {
             table_name: String,
         }
 
-        impl Table<#name, #query_struct> for #table_struct {
+        impl Table<#name, #query_struct, #query_hash_key_struct> for #table_struct {
 
             fn new_with_local_config(
                 table_name: impl Into<String>,
@@ -154,7 +155,7 @@ pub fn create_table(input: &DeriveInput) -> TokenStream {
                 >
             >
                 where
-                    QF: FnOnce(#query_struct) -> #query_struct,
+                    QF: FnOnce(#query_hash_key_struct) -> #query_struct,
                     F: FnOnce(#aws_sdk_dynamodb::operation::query::builders::QueryFluentBuilder)
                         -> #aws_sdk_dynamodb::operation::query::builders::QueryFluentBuilder
             {
@@ -176,7 +177,7 @@ pub fn create_table(input: &DeriveInput) -> TokenStream {
                 >
             > + 'a
                 where
-                    QF: FnOnce(#query_struct) -> #query_struct
+                    QF: FnOnce(#query_hash_key_struct) -> #query_struct
             {
                 let q = q(#query_struct::new());
                 let (key_expr, attr_names, attr_values) = q.into();

@@ -24,7 +24,7 @@ pub trait Item:
     fn key_attribute_defintions() -> Vec<AttributeDefinition>;
 }
 
-pub trait Table<T, Q>
+pub trait Table<T, Q, QHK>
 where
     T: Item,
 {
@@ -84,7 +84,7 @@ where
         f: F,
     ) -> impl Future<Output = Result<QueryOutput, SdkError<QueryError, HttpResponse>>>
     where
-        QF: FnOnce(Q) -> Q,
+        QF: FnOnce(QHK) -> Q,
         F: FnOnce(QueryFluentBuilder) -> QueryFluentBuilder;
 
     fn query<'a, QF>(
@@ -92,5 +92,5 @@ where
         q: QF,
     ) -> impl Stream<Item = Result<T, SdkError<QueryError, HttpResponse>>> + 'a
     where
-        QF: FnOnce(Q) -> Q;
+        QF: FnOnce(QHK) -> Q;
 }
