@@ -16,7 +16,7 @@ pub fn create_nested_item(input: &mut DeriveInput) -> TokenStream {
     let mut attr_unboxer: Vec<Expr> = vec![];
     let mut attr_typ_ident: Vec<Ident> = vec![];
 
-    let mut append = |i: ItemAttribute| {
+    let append = |i: ItemAttribute| {
         let (boxer, unboxer) = i.box_unbox();
         attr_boxer.push(boxer);
         attr_unboxer.push(unboxer);
@@ -25,7 +25,7 @@ pub fn create_nested_item(input: &mut DeriveInput) -> TokenStream {
         attr_typ_ident.push(i.typ_ident);
     };
 
-    def.attributes.into_iter().for_each(|e| append(e));
+    def.attributes.into_iter().for_each(append);
 
     quote! {
         #[derive(Debug)]
@@ -48,5 +48,5 @@ pub fn create_nested_item(input: &mut DeriveInput) -> TokenStream {
                 map
             }
         }
-    }.into()
+    }
 }

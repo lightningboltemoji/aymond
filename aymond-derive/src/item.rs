@@ -50,13 +50,13 @@ pub fn create_item(input: &mut DeriveInput) -> TokenStream {
     let key_ident = &attr_ident[0..(if has_sort_key { 2 } else { 1 })];
     let key_attr_name = &attr_name[0..(if has_sort_key { 2 } else { 1 })];
     let key_attr_ident = &attr_typ_ident[0..(if has_sort_key { 2 } else { 1 })];
-    let key_type: Vec<Expr> = (|| {
+    let key_type: Vec<Expr> = {
         let mut v = vec![parse_quote! {#aws_sdk_dynamodb::types::KeyType::Hash}];
         if has_sort_key {
             v.push(parse_quote! {#aws_sdk_dynamodb::types::KeyType::Range});
         }
         v
-    })();
+    };
 
     quote! {
         #[derive(Debug)]
@@ -121,5 +121,5 @@ pub fn create_item(input: &mut DeriveInput) -> TokenStream {
                 ]
             }
         }
-    }.into()
+    }
 }

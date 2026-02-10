@@ -222,5 +222,4 @@ pub fn create_table(input: &DeriveInput) -> TokenStream {
             }
         }
     }
-    .into()
 }

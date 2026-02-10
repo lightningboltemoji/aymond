@@ -20,7 +20,6 @@ pub fn create_get_builder(item: &ItemDefinition) -> TokenStream {
         let sort_key_attr_name = &item.sort_key.as_ref().unwrap().attr_name;
         let sort_key_typ = &item.sort_key.as_ref().unwrap().typ_ident;
 
-        let sort_key = item.sort_key.as_ref().unwrap();
         let sort_key_boxer = &item.hash_key.key_boxer_for(&parse_quote!(self.sk.unwrap()));
 
         quote! {
