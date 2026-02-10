@@ -127,3 +127,12 @@ async fn main() {
 }
 ```
 </details>
+
+## Not (yet) implemented
+
+- Query operation with fluent builder pattern
+- Update operation with fluent builder pattern
+- Global/local indices
+- Optimistic locking with version attribute
+- Transaction system, including cross-table
+- Projections

@@ -75,4 +75,12 @@ where
         &self,
         t: T,
     ) -> impl Future<Output = Result<(), SdkError<PutItemError, HttpResponse>>> + Send;
+
+    // fn query<F>(
+    //     &self,
+    //     q: Q,
+    //     f: F,
+    // ) -> impl Future<Output = Result<QueryOutput, SdkError<QueryError, HttpResponse>>>
+    // where
+    //     F: FnOnce(QueryFluentBuilder) -> PutItemFluentBuilder;
 }

@@ -1,25 +1,22 @@
 use aymond::prelude::*;
 
-#[nested_item]
-struct Production {
-    began: i32,
-    #[attribute(name = "units_produced")]
-    units: i64,
-}
-
-#[item]
+#[aymond(item, table)]
 struct Car {
     #[hash_key]
     make: String,
     #[sort_key]
     model: String,
     hp: i16,
-    production: Production,
     variants: Vec<String>,
+    production: Production,
 }
 
-#[table(Car)]
-struct CarTable {}
+#[aymond(nested_item)]
+struct Production {
+    began: i32,
+    #[attribute(name = "units_produced")]
+    units: i64,
+}
 
 #[tokio::main]
 async fn main() {
