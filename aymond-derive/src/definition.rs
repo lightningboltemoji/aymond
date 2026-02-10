@@ -117,15 +117,19 @@ impl ItemAttribute {
     }
 
     pub fn key_boxer(&self) -> Expr {
-        let field_ident = &self.ident;
+        let ident = &self.ident;
+        self.key_boxer_for(&parse_quote!(#ident))
+    }
+
+    pub fn key_boxer_for(&self, ident: &Expr) -> Expr {
         match self.typ.as_str() {
             "i8" | "i16" | "i32" | "i64" | "i128" | "u8" | "u16" | "u32" | "u64" | "u128" => {
                 parse_quote! {
-                    ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue::N(#field_ident.into().to_string())
+                    ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue::N(#ident.into().to_string())
                 }
             }
             "String" => parse_quote! {
-                ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue::S(#field_ident.into())
+                ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue::S(#ident.into())
             },
             _ => panic!(
                 "Type cannot be used for a DynamoDB key (S, N, B only): {}",

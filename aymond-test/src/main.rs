@@ -1,4 +1,4 @@
-use aymond::prelude::*;
+use aymond::{prelude::*, shim::futures::StreamExt};
 
 #[aymond(item, table)]
 struct Car {
@@ -49,4 +49,13 @@ async fn main() {
     // Read it back, with additional options
     let res: Result<_, _> = table.get_item(key, |r| r.consistent_read(true)).await;
     let _: Option<Car> = res.ok().and_then(|e| e.item().map(|i| i.into()));
+
+    // Query
+    let res = table.query(|q| q.make("Porsche").model_gt("9"));
+    let _: Vec<Car> = res.map(|e| e.ok().unwrap()).collect().await;
+
+    // Query, with additional options
+    let _: Result<_, _> = table
+        .query_ext(|q| q.make("Porsche").model_gt("8"), |r| r)
+        .await;
 }

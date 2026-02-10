@@ -5,9 +5,11 @@ use aws_sdk_dynamodb::{
         create_table::CreateTableError,
         get_item::{GetItemError, GetItemOutput, builders::GetItemFluentBuilder},
         put_item::{PutItemError, PutItemOutput, builders::PutItemFluentBuilder},
+        query::{QueryError, QueryOutput, builders::QueryFluentBuilder},
     },
     types::{AttributeDefinition, AttributeValue, KeySchemaElement},
 };
+use futures::Stream;
 use std::{collections::HashMap, sync::Arc};
 
 pub trait NestedItem:
@@ -22,7 +24,7 @@ pub trait Item:
     fn key_attribute_defintions() -> Vec<AttributeDefinition>;
 }
 
-pub trait Table<T>
+pub trait Table<T, Q>
 where
     T: Item,
 {
@@ -76,11 +78,19 @@ where
         t: T,
     ) -> impl Future<Output = Result<(), SdkError<PutItemError, HttpResponse>>> + Send;
 
-    // fn query<F>(
-    //     &self,
-    //     q: Q,
-    //     f: F,
-    // ) -> impl Future<Output = Result<QueryOutput, SdkError<QueryError, HttpResponse>>>
-    // where
-    //     F: FnOnce(QueryFluentBuilder) -> PutItemFluentBuilder;
+    fn query_ext<QF, F>(
+        &self,
+        q: QF,
+        f: F,
+    ) -> impl Future<Output = Result<QueryOutput, SdkError<QueryError, HttpResponse>>>
+    where
+        QF: FnOnce(Q) -> Q,
+        F: FnOnce(QueryFluentBuilder) -> QueryFluentBuilder;
+
+    fn query<'a, QF>(
+        &self,
+        q: QF,
+    ) -> impl Stream<Item = Result<T, SdkError<QueryError, HttpResponse>>> + 'a
+    where
+        QF: FnOnce(Q) -> Q;
 }
