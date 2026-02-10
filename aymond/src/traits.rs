@@ -25,7 +25,7 @@ pub trait Item:
     fn key_attribute_defintions() -> Vec<AttributeDefinition>;
 }
 
-pub trait Table<T, Q, QHK>
+pub trait Table<T, G, GHK, Q, QHK>
 where
     T: Item,
 {
@@ -58,18 +58,21 @@ where
         err_if_not_exists: bool,
     ) -> impl Future<Output = Result<(), SdkError<DeleteTableError, HttpResponse>>> + Send;
 
-    fn get_item<F>(
+    fn get_item<GF, F>(
         &self,
-        key: HashMap<String, AttributeValue>,
+        g: GF,
         f: F,
     ) -> impl Future<Output = Result<GetItemOutput, SdkError<GetItemError, HttpResponse>>>
     where
+        GF: FnOnce(GHK) -> G,
         F: FnOnce(GetItemFluentBuilder) -> GetItemFluentBuilder;
 
-    fn get(
+    fn get<GF>(
         &self,
-        key: HashMap<String, AttributeValue>,
-    ) -> impl Future<Output = Result<Option<T>, SdkError<GetItemError, HttpResponse>>> + Send;
+        g: GF,
+    ) -> impl Future<Output = Result<Option<T>, SdkError<GetItemError, HttpResponse>>>
+    where
+        GF: FnOnce(GHK) -> G;
 
     fn put_item<F>(
         &self,

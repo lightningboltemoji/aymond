@@ -6,43 +6,36 @@ Builds upon the existing AWS SDK DynamoDB client, providing a high-level interfa
 
 ## Usage
 
-Item shapes and table schemas are described by structs. 
-* The `item` and `nested_item` macros will generate serialization logic and helper functions. 
-* The `table` macro will generate high-level client methods (e.g. get, put).
+Item shapes are described by structs:
 
 ```rust
-use aymond::prelude::*;
-
-#[nested_item]
-struct Production {
-    began: i32,
-    #[attribute(name = "units_produced")]
-    units: i64,
-}
-
-#[item]
+#[aymond(item, table)]
 struct Car {
     #[hash_key]
     make: String,
     #[sort_key]
     model: String,
     hp: i16,
-    production: Production,
     variants: Vec<String>,
+    production: Production,
 }
 
-#[table(Car)]
-struct CarTable {}
+#[aymond(nested_item)]
+struct Production {
+    began: i32,
+    #[attribute(name = "units_produced")]
+    units: i64,
+}
 ```
 
-Interacting with the table is done through a `Table` instance. The appropriate CreateTable request is automatically generated based on the item schema.
+Interacting with the table is done through a `Table` instance:
 
 ```rust
 let table = CarTable::new_with_local_config("test", "http://localhost:8000", "us-west-2");
 table.create(false).await.expect("Failed to create");
 ```
 
-Writing an item with `put`
+Writing an item with `put`:
 
 ```rust
 let it = Car {
@@ -63,39 +56,38 @@ let it = Car {
 table.put(it).await.expect("Failed to write");
 ```
 
-Reading an item with `get`. A key function is automatically created based on item schema.
+Reading an item with `get`:
 
 ```rust
-let key = Car::key("Porsche", "911");
-let _: Option<Car> = table.get(key.clone()).await.expect("Failed to read");
+let _: Option<Car> = table
+    .get(|k| k.make("Porsche").model("911"))
+    .await
+    .expect("Failed to read");
 ```
 
 <details>
     <summary>Full example</summary>
 
 ```rust
-use aymond::prelude::*;
+use aymond::{prelude::*, shim::futures::StreamExt};
 
-#[nested_item]
-struct Production {
-    began: i32,
-    #[attribute(name = "units_produced")]
-    units: i64,
-}
-
-#[item]
+#[aymond(item, table)]
 struct Car {
     #[hash_key]
     make: String,
     #[sort_key]
     model: String,
     hp: i16,
-    production: Production,
     variants: Vec<String>,
+    production: Production,
 }
 
-#[table(Car)]
-struct CarTable {}
+#[aymond(nested_item)]
+struct Production {
+    began: i32,
+    #[attribute(name = "units_produced")]
+    units: i64,
+}
 
 #[tokio::main]
 async fn main() {
@@ -121,9 +113,20 @@ async fn main() {
     };
     table.put(it).await.expect("Failed to write");
 
-    // Read it back!
-    let key = Car::key("Porsche", "911");
-    let _: Option<Car> = table.get(key.clone()).await.expect("Failed to read");
+    // Read it back
+    let _: Option<Car> = table
+        .get(|k| k.make("Porsche").model("911"))
+        .await
+        .expect("Failed to read");
+
+    // Read it back, with additional options
+    let res: Result<_, _> = table
+        .get_item(
+            |k| k.make("Porsche").model("911"),
+            |r| r.consistent_read(true),
+        )
+        .await;
+    let _: Option<Car> = res.ok().and_then(|e| e.item().map(|i| i.into()));
 }
 ```
 </details>

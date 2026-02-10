@@ -11,6 +11,7 @@ use crate::{
 };
 
 mod definition;
+mod get_builder;
 mod item;
 mod nested_item;
 mod query_builder;

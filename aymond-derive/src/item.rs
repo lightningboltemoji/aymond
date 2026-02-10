@@ -2,7 +2,7 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{DeriveInput, Expr, Ident, parse_quote};
 
-use crate::{ItemAttribute, ItemDefinition, create_query_builder};
+use crate::{ItemAttribute, ItemDefinition, create_query_builder, get_builder::create_get_builder};
 
 pub fn create_item(input: &mut DeriveInput) -> TokenStream {
     let aws_sdk_dynamodb: Expr = parse_quote!(::aymond::shim::aws_sdk_dynamodb);
@@ -37,7 +37,8 @@ pub fn create_item(input: &mut DeriveInput) -> TokenStream {
         attr_typ_ident.push(i.typ_ident);
     };
 
-    let queryb = create_query_builder(&def);
+    let get_item = create_get_builder(&def);
+    let query = create_query_builder(&def);
 
     let has_sort_key = def.sort_key.is_some();
     append(def.hash_key, true);
@@ -60,7 +61,8 @@ pub fn create_item(input: &mut DeriveInput) -> TokenStream {
     quote! {
         #[derive(Debug)]
         #input
-        #queryb
+        #get_item
+        #query
 
         impl From<&::std::collections::HashMap<String, #aws_sdk_dynamodb::types::AttributeValue>> for #name {
             fn from(map: &::std::collections::HashMap<String, #aws_sdk_dynamodb::types::AttributeValue>) -> Self {

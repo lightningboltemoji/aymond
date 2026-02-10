@@ -8,6 +8,8 @@ pub fn create_table(input: &DeriveInput) -> TokenStream {
 
     let name = &input.ident;
     let table_struct = format_ident!("{}Table", &name);
+    let get_item_struct = format_ident!("{}GetItem", &name);
+    let get_item_hash_key_struct = format_ident!("{}GetItemHashKey", &name);
     let query_struct = format_ident!("{}Query", &name);
     let query_hash_key_struct = format_ident!("{}QueryHashKey", &name);
     quote! {
@@ -17,7 +19,7 @@ pub fn create_table(input: &DeriveInput) -> TokenStream {
             table_name: String,
         }
 
-        impl Table<#name, #query_struct, #query_hash_key_struct> for #table_struct {
+        impl Table<#name, #get_item_struct, #get_item_hash_key_struct, #query_struct, #query_hash_key_struct> for #table_struct {
 
             fn new_with_local_config(
                 table_name: impl Into<String>,
@@ -106,9 +108,9 @@ pub fn create_table(input: &DeriveInput) -> TokenStream {
                 }
             }
 
-            async fn get_item<F>(
+            async fn get_item<GF, F>(
                 &self,
-                key: ::std::collections::HashMap<String, #aws_sdk_dynamodb::types::AttributeValue>,
+                g: GF,
                 f: F
             ) -> Result<
                 #aws_sdk_dynamodb::operation::get_item::GetItemOutput,
@@ -117,24 +119,30 @@ pub fn create_table(input: &DeriveInput) -> TokenStream {
                     #aws_sdk_dynamodb::config::http::HttpResponse
                 >
             >
-                where F: FnOnce(#aws_sdk_dynamodb::operation::get_item::builders::GetItemFluentBuilder)
+                where
+                    GF: FnOnce(#get_item_hash_key_struct) -> #get_item_struct,
+                    F: FnOnce(#aws_sdk_dynamodb::operation::get_item::builders::GetItemFluentBuilder)
                     -> #aws_sdk_dynamodb::operation::get_item::builders::GetItemFluentBuilder
             {
+                let k = g(#get_item_struct::new());
                 f(self.client.get_item())
                     .table_name(&self.table_name)
-                    .set_key(Some(key))
+                    .set_key(Some(k.into()))
                     .send()
                     .await
             }
 
-            async fn get(&self, key: ::std::collections::HashMap<String, #aws_sdk_dynamodb::types::AttributeValue>) -> Result<
+            async fn get<GF>(&self, g: GF) -> Result<
                 Option<#name>,
                 #aws_sdk_dynamodb::error::SdkError<
                     #aws_sdk_dynamodb::operation::get_item::GetItemError,
                     #aws_sdk_dynamodb::config::http::HttpResponse
                 >
-            > {
-                let res = self.get_item(key, |r| r).await?;
+            >
+                where
+                    GF: FnOnce(#get_item_hash_key_struct) -> #get_item_struct
+            {
+                let res = self.get_item(g, |r| r).await?;
                 Ok(res.item().map(|e| e.into()))
             }
 

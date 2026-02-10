@@ -43,12 +43,19 @@ async fn main() {
     };
     table.put(it).await.expect("Failed to write");
 
-    // Read it back!
-    let key = Car::key("Porsche", "911");
-    let _: Option<Car> = table.get(key.clone()).await.expect("Failed to read");
+    // Read it back
+    let _: Option<Car> = table
+        .get(|k| k.make("Porsche").model("911"))
+        .await
+        .expect("Failed to read");
 
     // Read it back, with additional options
-    let res: Result<_, _> = table.get_item(key, |r| r.consistent_read(true)).await;
+    let res: Result<_, _> = table
+        .get_item(
+            |k| k.make("Porsche").model("911"),
+            |r| r.consistent_read(true),
+        )
+        .await;
     let _: Option<Car> = res.ok().and_then(|e| e.item().map(|i| i.into()));
 
     // Query
@@ -57,7 +64,10 @@ async fn main() {
 
     // Query, with additional options
     let _: Result<_, _> = table
-        .query_ext(|q| q.make("Porsche").model_gt("8"), |r| r)
+        .query_ext(
+            |q| q.make("Porsche").model_gt("9"),
+            |r| r.scan_index_forward(false),
+        )
         .await;
 }
 
