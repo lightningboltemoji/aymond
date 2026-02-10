@@ -12,6 +12,7 @@ pub fn create_query_builder(item: &ItemDefinition) -> TokenStream {
     let hash_key_attr_name = &item.hash_key.attr_name;
     let hash_key_ident = &item.hash_key.ident;
     let hash_key_typ = &item.hash_key.typ_ident;
+    let hash_key_boxer = &item.hash_key.key_boxer_for(&parse_quote!(self.hk.unwrap()));
 
     let mut chunks: Vec<TokenStream> = vec![];
 
@@ -21,7 +22,6 @@ pub fn create_query_builder(item: &ItemDefinition) -> TokenStream {
         let sort_key_attr_name = &item.sort_key.as_ref().unwrap().attr_name;
         let sort_key_typ = &item.sort_key.as_ref().unwrap().typ_ident;
 
-        let hash_key_boxer = &item.hash_key.key_boxer_for(&parse_quote!(self.hk.unwrap()));
         let sort_key = item.sort_key.as_ref().unwrap();
         let sort_key_b_boxer = sort_key.key_boxer_for(&parse_quote!(self.b.unwrap()));
         let sort_key_c_boxer = sort_key.key_boxer_for(&parse_quote!(self.c.unwrap()));
@@ -145,7 +145,7 @@ pub fn create_query_builder(item: &ItemDefinition) -> TokenStream {
 
             impl #query_struct {
                 fn new() -> #hash_key_struct {
-                    let q = #query_struct { hk: None };
+                    let q = #query_struct { hk: None, qs: None };
                     #hash_key_struct { q }
                 }
             }
@@ -155,6 +155,28 @@ pub fn create_query_builder(item: &ItemDefinition) -> TokenStream {
                     self.q.hk = Some(v.into());
                     self.q.qs = Some("#hk = :hk".into());
                     self.q
+                }
+            }
+
+            impl Into<(
+                String,
+                ::std::collections::HashMap<String, String>,
+                ::std::collections::HashMap<String, #aws_sdk_dynamodb::types::AttributeValue>,
+            )> for #query_struct {
+                fn into(self) -> (
+                    String,
+                    ::std::collections::HashMap<String, String>,
+                    ::std::collections::HashMap<String, #aws_sdk_dynamodb::types::AttributeValue>,
+                ) {
+                    let exp = self.qs.unwrap();
+
+                    let mut key_names = ::std::collections::HashMap::new();
+                    key_names.insert("#hk".to_string(), #hash_key_attr_name.to_string());
+
+                    let mut key_values = ::std::collections::HashMap::new();
+                    key_values.insert(":hk".to_string(), #hash_key_boxer);
+
+                    (exp, key_names, key_values)
                 }
             }
         });

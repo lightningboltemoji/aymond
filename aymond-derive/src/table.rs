@@ -87,6 +87,25 @@ pub fn create_table(input: &DeriveInput) -> TokenStream {
                 }
             }
 
+            async fn delete(&self, err_if_not_exists: bool) -> Result<
+                (), #aws_sdk_dynamodb::error::SdkError<
+                    #aws_sdk_dynamodb::operation::delete_table::DeleteTableError,
+                    #aws_sdk_dynamodb::config::http::HttpResponse
+                >
+            > {
+                let res = self.client.delete_table()
+                    .table_name(&self.table_name)
+                    .send();
+                match res.await {
+                    Err(e) => match e {
+                        #aws_sdk_dynamodb::error::SdkError::ServiceError(ref context)
+                            if !err_if_not_exists && context.err().is_resource_not_found_exception() => Ok(()),
+                        _ => Err(e)
+                    }
+                    _ => Ok(())
+                }
+            }
+
             async fn get_item<F>(
                 &self,
                 key: ::std::collections::HashMap<String, #aws_sdk_dynamodb::types::AttributeValue>,

@@ -13,3 +13,4 @@ edition = "2024"
 aymond = { version = "0.1.0", path = "../aymond" }
 aymond-derive = { version = "0.1.0", path = "../aymond-derive" }
 tokio = { version = "1.49.0", features = ["full"] }
+trybuild = "1.0.115"

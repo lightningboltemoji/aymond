@@ -3,6 +3,7 @@ use aws_sdk_dynamodb::{
     error::SdkError,
     operation::{
         create_table::CreateTableError,
+        delete_table::DeleteTableError,
         get_item::{GetItemError, GetItemOutput, builders::GetItemFluentBuilder},
         put_item::{PutItemError, PutItemOutput, builders::PutItemFluentBuilder},
         query::{QueryError, QueryOutput, builders::QueryFluentBuilder},
@@ -51,6 +52,11 @@ where
         &self,
         err_if_exists: bool,
     ) -> impl Future<Output = Result<(), SdkError<CreateTableError, HttpResponse>>> + Send;
+
+    fn delete(
+        &self,
+        err_if_not_exists: bool,
+    ) -> impl Future<Output = Result<(), SdkError<DeleteTableError, HttpResponse>>> + Send;
 
     fn get_item<F>(
         &self,

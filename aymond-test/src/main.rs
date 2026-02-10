@@ -22,6 +22,7 @@ struct Production {
 async fn main() {
     // Create a table in local DynamoDB, based on our item schema
     let table = CarTable::new_with_local_config("test", "http://localhost:8000", "us-west-2");
+    table.delete(false).await.expect("Failed to delete");
     table.create(false).await.expect("Failed to create");
 
     // Write
@@ -58,4 +59,11 @@ async fn main() {
     let _: Result<_, _> = table
         .query_ext(|q| q.make("Porsche").model_gt("8"), |r| r)
         .await;
+}
+
+#[test]
+fn compile() {
+    let t = trybuild::TestCases::new();
+    t.pass("src/should_compile/*.rs");
+    t.compile_fail("src/shouldnt_compile/*.rs");
 }
