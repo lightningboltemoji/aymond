@@ -22,19 +22,19 @@ async fn test() {
     table.put(it).await.expect("Failed to write");
 
     let get = table.get(|k| k.make("Porsche")).await.unwrap();
-    assert!(get.unwrap() == it_factory());
+    assert_eq!(get.unwrap(), it_factory());
 
     let res = table
         .get_item(|k| k.make("Porsche"), |r| r.consistent_read(true))
         .await;
     let get: Option<Car> = res.ok().and_then(|e| e.item().map(|i| i.into()));
-    assert!(get.unwrap() == it_factory());
+    assert_eq!(get.unwrap(), it_factory());
 
     let res = table.query(|q| q.make("Porsche"));
     let query: Vec<Car> = res.map(|e| e.ok().unwrap()).collect().await;
-    assert!(query == vec![it_factory()]);
+    assert_eq!(query, vec![it_factory()]);
 
     let res = table.query_ext(|q| q.make("Porsche"), |r| r.limit(1)).await;
     let query: Vec<Car> = res.unwrap().items().iter().map(|e| e.into()).collect();
-    assert!(query == vec![it_factory()]);
+    assert_eq!(query, vec![it_factory()]);
 }

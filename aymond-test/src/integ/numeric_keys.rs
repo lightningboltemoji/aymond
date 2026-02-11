@@ -20,21 +20,21 @@ async fn test() {
     table.put(it).await.expect("Failed to write");
 
     let get = table.get(|k| k.row(10).col(14)).await.unwrap();
-    assert!(get.unwrap() == it_factory());
+    assert_eq!(get.unwrap(), it_factory());
 
     let res: Result<_, _> = table
         .get_item(|k| k.row(10).col(14), |r| r.consistent_read(true))
         .await;
     let get: Option<Cell> = res.ok().and_then(|e| e.item().map(|i| i.into()));
-    assert!(get.unwrap() == it_factory());
+    assert_eq!(get.unwrap(), it_factory());
 
     let res = table.query(|q| q.row(10).col_gt(10));
     let query: Vec<Cell> = res.map(|e| e.ok().unwrap()).collect().await;
-    assert!(query == vec![it_factory()]);
+    assert_eq!(query, vec![it_factory()]);
 
     let res = table
         .query_ext(|q| q.row(10).col_gt(10), |r| r.scan_index_forward(false))
         .await;
     let query: Vec<Cell> = res.unwrap().items().iter().map(|e| e.into()).collect();
-    assert!(query == vec![it_factory()]);
+    assert_eq!(query, vec![it_factory()]);
 }
