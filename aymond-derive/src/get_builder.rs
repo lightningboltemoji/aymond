@@ -6,7 +6,7 @@ use syn::{Expr, parse_quote};
 pub fn create_get_builder(item: &ItemDefinition) -> TokenStream {
     let aws_sdk_dynamodb: Expr = parse_quote!(::aymond::shim::aws_sdk_dynamodb);
 
-    let query_struct = format_ident!("{}GetItem", &item.name);
+    let get_item_struct = format_ident!("{}GetItem", &item.name);
     let hash_key_struct = format_ident!("{}GetItemHashKey", &item.name);
 
     let hash_key_attr_name = &item.hash_key.attr_name;
@@ -24,17 +24,17 @@ pub fn create_get_builder(item: &ItemDefinition) -> TokenStream {
 
         quote! {
             struct #hash_key_struct {
-                q: #query_struct,
+                q: #get_item_struct,
             }
 
-            struct #query_struct {
+            struct #get_item_struct {
                 hk: Option<#hash_key_typ>,
                 sk: Option<#sort_key_typ>,
             }
 
-            impl #query_struct {
+            impl #get_item_struct {
                 fn new() -> #hash_key_struct {
-                    let q = #query_struct { hk: None, sk: None };
+                    let q = #get_item_struct { hk: None, sk: None };
                     #hash_key_struct { q }
                 }
             }
@@ -47,17 +47,17 @@ pub fn create_get_builder(item: &ItemDefinition) -> TokenStream {
             }
 
             struct #sort_key_struct {
-                q: #query_struct,
+                q: #get_item_struct,
             }
 
             impl #sort_key_struct {
-                fn #sort_key_ident (mut self, sk: impl Into<#sort_key_typ>) -> #query_struct {
+                fn #sort_key_ident (mut self, sk: impl Into<#sort_key_typ>) -> #get_item_struct {
                     self.q.sk = Some(sk.into());
                     self.q
                 }
             }
 
-            impl Into<::std::collections::HashMap<String, #aws_sdk_dynamodb::types::AttributeValue>> for #query_struct {
+            impl Into<::std::collections::HashMap<String, #aws_sdk_dynamodb::types::AttributeValue>> for #get_item_struct {
                 fn into(self) -> ::std::collections::HashMap<String, #aws_sdk_dynamodb::types::AttributeValue> {
                     let mut key_values = ::std::collections::HashMap::new();
                     key_values.insert(#hash_key_attr_name.to_string(), #hash_key_boxer);
@@ -71,28 +71,28 @@ pub fn create_get_builder(item: &ItemDefinition) -> TokenStream {
     } else {
         quote! {
             struct #hash_key_struct {
-                q: #query_struct,
+                q: #get_item_struct,
             }
 
-            struct #query_struct {
+            struct #get_item_struct {
                 hk: Option<#hash_key_typ>,
             }
 
-            impl #query_struct {
+            impl #get_item_struct {
                 fn new() -> #hash_key_struct {
-                    let q = #query_struct { hk: None };
+                    let q = #get_item_struct { hk: None };
                     #hash_key_struct { q }
                 }
             }
 
             impl #hash_key_struct {
-                fn #hash_key_ident (mut self, v: impl Into<#hash_key_typ>) -> #query_struct {
+                fn #hash_key_ident (mut self, v: impl Into<#hash_key_typ>) -> #get_item_struct {
                     self.q.hk = Some(v.into());
                     self.q
                 }
             }
 
-            impl Into<::std::collections::HashMap<String, #aws_sdk_dynamodb::types::AttributeValue>> for #query_struct {
+            impl Into<::std::collections::HashMap<String, #aws_sdk_dynamodb::types::AttributeValue>> for #get_item_struct {
                 fn into(self) -> ::std::collections::HashMap<String, #aws_sdk_dynamodb::types::AttributeValue> {
                     let mut key_values = ::std::collections::HashMap::new();
                     key_values.insert(#hash_key_attr_name.to_string(), #hash_key_boxer);
