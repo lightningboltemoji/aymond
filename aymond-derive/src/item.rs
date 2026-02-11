@@ -23,15 +23,11 @@ pub fn create_item(input: &mut DeriveInput) -> TokenStream {
     let mut attr_boxer: Vec<Expr> = vec![];
     let mut attr_unboxer: Vec<Expr> = vec![];
     let mut attr_typ_ident: Vec<Ident> = vec![];
-    let mut key_boxer: Vec<Expr> = vec![];
 
-    let mut append = |i: ItemAttribute, key: bool| {
+    let mut append = |i: ItemAttribute| {
         let (boxer, unboxer) = i.box_unbox();
         attr_boxer.push(boxer);
         attr_unboxer.push(unboxer);
-        if key {
-            key_boxer.push(i.key_boxer());
-        }
         attr_ident.push(i.ident);
         attr_name.push(i.attr_name);
         attr_typ_ident.push(i.typ_ident);
@@ -41,15 +37,11 @@ pub fn create_item(input: &mut DeriveInput) -> TokenStream {
     let query = create_query_builder(&def);
 
     let has_sort_key = def.sort_key.is_some();
-    append(def.hash_key, true);
-    def.sort_key.into_iter().for_each(|e| append(e, true));
-    def.other_attributes
-        .into_iter()
-        .for_each(|e| append(e, false));
+    append(def.hash_key);
+    def.sort_key.into_iter().for_each(&mut append);
+    def.other_attributes.into_iter().for_each(append);
 
-    let key_ident = &attr_ident[0..(if has_sort_key { 2 } else { 1 })];
     let key_attr_name = &attr_name[0..(if has_sort_key { 2 } else { 1 })];
-    let key_attr_ident = &attr_typ_ident[0..(if has_sort_key { 2 } else { 1 })];
     let key_type: Vec<Expr> = {
         let mut v = vec![parse_quote! {#aws_sdk_dynamodb::types::KeyType::Hash}];
         if has_sort_key {
@@ -77,20 +69,6 @@ pub fn create_item(input: &mut DeriveInput) -> TokenStream {
                 let mut map = ::std::collections::HashMap::new();
                 #(
                     map.insert(#attr_name.to_string(), #attr_boxer);
-                )*
-                map
-            }
-        }
-
-        impl #name {
-            pub fn key(
-                #(
-                    #key_ident: impl Into<#key_attr_ident>
-                ),*
-            ) -> ::std::collections::HashMap<String, #aws_sdk_dynamodb::types::AttributeValue> {
-                let mut map = ::std::collections::HashMap::new();
-                #(
-                    map.insert(#key_attr_name.to_string(), #key_boxer);
                 )*
                 map
             }

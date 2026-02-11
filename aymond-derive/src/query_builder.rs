@@ -32,7 +32,7 @@ pub fn create_query_builder(item: &ItemDefinition) -> TokenStream {
             }
 
             struct #query_struct {
-                hk: Option<String>,
+                hk: Option<#hash_key_typ>,
                 qs: Option<String>,
                 b: Option<#sort_key_typ>,
                 c: Option<#sort_key_typ>,
@@ -139,7 +139,7 @@ pub fn create_query_builder(item: &ItemDefinition) -> TokenStream {
             }
 
             struct #query_struct {
-                hk: Option<String>,
+                hk: Option<#hash_key_typ>,
                 qs: Option<String>,
             }
 

@@ -28,7 +28,7 @@ pub fn create_get_builder(item: &ItemDefinition) -> TokenStream {
             }
 
             struct #query_struct {
-                hk: Option<String>,
+                hk: Option<#hash_key_typ>,
                 sk: Option<#sort_key_typ>,
             }
 
@@ -75,7 +75,7 @@ pub fn create_get_builder(item: &ItemDefinition) -> TokenStream {
             }
 
             struct #query_struct {
-                hk: Option<String>,
+                hk: Option<#hash_key_typ>,
             }
 
             impl #query_struct {
