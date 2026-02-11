@@ -19,12 +19,11 @@ async fn test() {
     let it = it_factory();
     table.put(it).await.expect("Failed to write");
 
-    let get = table.get(|k| k.row(10).col(14)).await.unwrap();
+    let get = table.get().row(10).col(14).send().await.unwrap();
     assert_eq!(get.unwrap(), it_factory());
 
-    let res: Result<_, _> = table
-        .get_item(|k| k.row(10).col(14), |r| r.consistent_read(true))
-        .await;
+    let req = table.get().row(10).col(14);
+    let res = req.raw(|r| r.consistent_read(true)).await;
     let get: Option<Cell> = res.ok().and_then(|e| e.item().map(|i| i.into()));
     assert_eq!(get.unwrap(), it_factory());
 

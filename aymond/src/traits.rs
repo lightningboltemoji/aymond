@@ -4,7 +4,6 @@ use aws_sdk_dynamodb::{
     operation::{
         create_table::CreateTableError,
         delete_table::DeleteTableError,
-        get_item::{GetItemError, GetItemOutput, builders::GetItemFluentBuilder},
         put_item::{PutItemError, PutItemOutput, builders::PutItemFluentBuilder},
         query::{QueryError, QueryOutput, builders::QueryFluentBuilder},
     },
@@ -25,9 +24,10 @@ pub trait Item:
     fn key_attribute_defintions() -> Vec<AttributeDefinition>;
 }
 
-pub trait Table<T, G, GHK, Q, QHK>
+pub trait Table<'a, T, G, GHK, Q, QHK>
 where
     T: Item,
+    GHK: 'a,
 {
     fn new_with_default_config(table_name: impl Into<String>) -> impl Future<Output = Self>;
 
@@ -58,21 +58,7 @@ where
         err_if_not_exists: bool,
     ) -> impl Future<Output = Result<(), SdkError<DeleteTableError, HttpResponse>>> + Send;
 
-    fn get_item<GF, F>(
-        &self,
-        g: GF,
-        f: F,
-    ) -> impl Future<Output = Result<GetItemOutput, SdkError<GetItemError, HttpResponse>>>
-    where
-        GF: FnOnce(GHK) -> G,
-        F: FnOnce(GetItemFluentBuilder) -> GetItemFluentBuilder;
-
-    fn get<GF>(
-        &self,
-        g: GF,
-    ) -> impl Future<Output = Result<Option<T>, SdkError<GetItemError, HttpResponse>>>
-    where
-        GF: FnOnce(GHK) -> G;
+    fn get(&'a self) -> GHK;
 
     fn put_item<F>(
         &self,
@@ -96,7 +82,7 @@ where
         QF: FnOnce(QHK) -> Q,
         F: FnOnce(QueryFluentBuilder) -> QueryFluentBuilder;
 
-    fn query<'a, QF>(
+    fn query<QF>(
         &self,
         q: QF,
     ) -> impl Stream<Item = Result<T, SdkError<QueryError, HttpResponse>>> + 'a

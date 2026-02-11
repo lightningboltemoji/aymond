@@ -2,9 +2,9 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{DeriveInput, Expr, Ident, parse_quote};
 
-use crate::{ItemAttribute, ItemDefinition, create_query_builder, get_builder::create_get_builder};
+use crate::{ItemAttribute, ItemDefinition};
 
-pub fn create_item(input: &mut DeriveInput) -> TokenStream {
+pub fn create_item(input: &mut DeriveInput) -> (TokenStream, ItemDefinition) {
     let aws_sdk_dynamodb: Expr = parse_quote!(::aymond::shim::aws_sdk_dynamodb);
 
     // println!("{:#?}", input);
@@ -24,22 +24,19 @@ pub fn create_item(input: &mut DeriveInput) -> TokenStream {
     let mut attr_unboxer: Vec<Expr> = vec![];
     let mut attr_typ_ident: Vec<Ident> = vec![];
 
-    let mut append = |i: ItemAttribute| {
+    let mut append = |i: &ItemAttribute| {
         let (boxer, unboxer) = i.box_unbox();
         attr_boxer.push(boxer);
         attr_unboxer.push(unboxer);
-        attr_ident.push(i.ident);
-        attr_name.push(i.attr_name);
-        attr_typ_ident.push(i.typ_ident);
+        attr_ident.push(i.ident.clone());
+        attr_name.push(i.attr_name.clone());
+        attr_typ_ident.push(i.typ_ident.clone());
     };
 
-    let get_item = create_get_builder(&def);
-    let query = create_query_builder(&def);
-
     let has_sort_key = def.sort_key.is_some();
-    append(def.hash_key);
-    def.sort_key.into_iter().for_each(&mut append);
-    def.other_attributes.into_iter().for_each(append);
+    append(&def.hash_key);
+    def.sort_key.iter().for_each(&mut append);
+    def.other_attributes.iter().for_each(&mut append);
 
     let key_attr_name = &attr_name[0..(if has_sort_key { 2 } else { 1 })];
     let key_type: Vec<Expr> = {
@@ -50,11 +47,9 @@ pub fn create_item(input: &mut DeriveInput) -> TokenStream {
         v
     };
 
-    quote! {
+    let item = quote! {
         #[derive(Debug, PartialEq)]
         #input
-        #get_item
-        #query
 
         impl From<&::std::collections::HashMap<String, #aws_sdk_dynamodb::types::AttributeValue>> for #name {
             fn from(map: &::std::collections::HashMap<String, #aws_sdk_dynamodb::types::AttributeValue>) -> Self {
@@ -99,5 +94,6 @@ pub fn create_item(input: &mut DeriveInput) -> TokenStream {
                 ]
             }
         }
-    }
+    };
+    (item, def)
 }

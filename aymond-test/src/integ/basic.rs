@@ -42,17 +42,12 @@ async fn test() {
     let it = it_factory();
     table.put(it).await.expect("Failed to write");
 
-    let get = table.get(|k| k.make("Porsche").model("911")).await.unwrap();
+    let req = table.get().make("Porsche").model("911");
+    let get = req.send().await.unwrap();
     assert_eq!(get.unwrap(), it_factory());
 
-    let res = table
-        .get_item(
-            |k| k.make("Porsche").model("911"),
-            |r| r.consistent_read(true),
-        )
-        .await
-        .ok()
-        .unwrap();
+    let req = table.get().make("Porsche").model("911");
+    let res = req.raw(|r| r.consistent_read(true)).await.ok().unwrap();
     assert_eq!(
         res.item().unwrap()["production"].as_m().unwrap()["units_produced"]
             .as_n()

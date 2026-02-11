@@ -1,25 +1,33 @@
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-use syn::{DeriveInput, Expr, parse_quote};
+use syn::{Expr, parse_quote};
 
-pub fn create_table(input: &DeriveInput) -> TokenStream {
+use crate::{ItemDefinition, create_query_builder, get_builder::create_get_builder};
+
+pub fn create_table(def: &ItemDefinition) -> TokenStream {
     let aws_types: Expr = parse_quote!(::aymond::shim::aws_types);
     let aws_sdk_dynamodb: Expr = parse_quote!(::aymond::shim::aws_sdk_dynamodb);
 
-    let name = &input.ident;
+    let name = format_ident!("{}", &def.name);
     let table_struct = format_ident!("{}Table", &name);
     let get_item_struct = format_ident!("{}GetItem", &name);
     let get_item_hash_key_struct = format_ident!("{}GetItemHashKey", &name);
     let query_struct = format_ident!("{}Query", &name);
     let query_hash_key_struct = format_ident!("{}QueryHashKey", &name);
+
+    let get_item = create_get_builder(&def);
+    let query = create_query_builder(&def);
     quote! {
+        #get_item
+        #query
+
         #[derive(Debug)]
         struct #table_struct {
             client: ::std::sync::Arc<#aws_sdk_dynamodb::Client>,
             table_name: String,
         }
 
-        impl Table<#name, #get_item_struct, #get_item_hash_key_struct, #query_struct, #query_hash_key_struct> for #table_struct {
+        impl<'a> Table<'a, #name, #get_item_struct<'a>, #get_item_hash_key_struct<'a>, #query_struct, #query_hash_key_struct> for #table_struct {
 
             fn new_with_local_config(
                 table_name: impl Into<String>,
@@ -108,42 +116,8 @@ pub fn create_table(input: &DeriveInput) -> TokenStream {
                 }
             }
 
-            async fn get_item<GF, F>(
-                &self,
-                g: GF,
-                f: F
-            ) -> Result<
-                #aws_sdk_dynamodb::operation::get_item::GetItemOutput,
-                #aws_sdk_dynamodb::error::SdkError<
-                    #aws_sdk_dynamodb::operation::get_item::GetItemError,
-                    #aws_sdk_dynamodb::config::http::HttpResponse
-                >
-            >
-                where
-                    GF: FnOnce(#get_item_hash_key_struct) -> #get_item_struct,
-                    F: FnOnce(#aws_sdk_dynamodb::operation::get_item::builders::GetItemFluentBuilder)
-                    -> #aws_sdk_dynamodb::operation::get_item::builders::GetItemFluentBuilder
-            {
-                let k = g(#get_item_struct::new());
-                f(self.client.get_item())
-                    .table_name(&self.table_name)
-                    .set_key(Some(k.into()))
-                    .send()
-                    .await
-            }
-
-            async fn get<GF>(&self, g: GF) -> Result<
-                Option<#name>,
-                #aws_sdk_dynamodb::error::SdkError<
-                    #aws_sdk_dynamodb::operation::get_item::GetItemError,
-                    #aws_sdk_dynamodb::config::http::HttpResponse
-                >
-            >
-                where
-                    GF: FnOnce(#get_item_hash_key_struct) -> #get_item_struct
-            {
-                let res = self.get_item(g, |r| r).await?;
-                Ok(res.item().map(|e| e.into()))
+            fn get(&'a self) -> #get_item_hash_key_struct<'a> {
+                #get_item_struct::new(self)
             }
 
             async fn put_item<F>(&self, t: #name, f: F) -> Result<
@@ -197,7 +171,7 @@ pub fn create_table(input: &DeriveInput) -> TokenStream {
                     .await
             }
 
-            fn query<'a, QF>(&self, q: QF) -> impl ::aymond::shim::futures::Stream<
+            fn query<QF>(&self, q: QF) -> impl ::aymond::shim::futures::Stream<
                 Item = Result<#name, #aws_sdk_dynamodb::error::SdkError<
                     #aws_sdk_dynamodb::operation::query::QueryError,
                     #aws_sdk_dynamodb::config::http::HttpResponse>

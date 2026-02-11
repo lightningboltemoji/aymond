@@ -43,8 +43,5 @@ async fn main() {
     };
     table.put(it).await.expect("Failed to write");
 
-    let _: Option<Car> = table
-        .get(|k| k.make("Porsche").model("911"))
-        .await
-        .expect("Failed to read");
+    let _ = table.get().make("Porsche").model("911").send().await;
 }

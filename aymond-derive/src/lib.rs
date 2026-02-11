@@ -45,10 +45,13 @@ pub fn aymond(args: TokenStream, input: TokenStream) -> TokenStream {
         (true, true, _) => panic!("Can't specify both item and nested_item"),
         (false, _, true) => panic!("Can't specify table without item"),
         (_, true, _) => vec![create_nested_item(&mut input)],
-        (true, _, false) => vec![create_item(&mut input)],
+        (true, _, false) => {
+            let (item, _) = create_item(&mut input);
+            vec![item]
+        }
         (true, _, true) => {
-            let item = create_item(&mut input);
-            let table = create_table(&input);
+            let (item, def) = create_item(&mut input);
+            let table = create_table(&def);
             vec![quote!(#item), quote!(#table)]
         }
     };

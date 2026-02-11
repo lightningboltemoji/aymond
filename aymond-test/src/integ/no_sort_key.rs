@@ -21,12 +21,11 @@ async fn test() {
     let it = it_factory();
     table.put(it).await.expect("Failed to write");
 
-    let get = table.get(|k| k.make("Porsche")).await.unwrap();
+    let get = table.get().make("Porsche").send().await.unwrap();
     assert_eq!(get.unwrap(), it_factory());
 
-    let res = table
-        .get_item(|k| k.make("Porsche"), |r| r.consistent_read(true))
-        .await;
+    let req = table.get().make("Porsche");
+    let res = req.raw(|r| r.consistent_read(true)).await;
     let get: Option<Car> = res.ok().and_then(|e| e.item().map(|i| i.into()));
     assert_eq!(get.unwrap(), it_factory());
 
