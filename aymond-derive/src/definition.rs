@@ -37,7 +37,7 @@ impl ItemAttribute {
             ),
             "String" => (
                 parse_quote! {
-                    ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue::S(#ident.to_string())
+                    ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue::S(#ident)
                 },
                 parse_quote! {
                     #ident.as_s().unwrap().to_string()
@@ -84,7 +84,7 @@ impl ItemAttribute {
             ),
             "String" => (
                 parse_quote! {
-                    ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue::S(self.#field_ident.to_string())
+                    ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue::S(self.#field_ident)
                 },
                 parse_quote! {
                     map.get(#attr_name).unwrap().as_s().unwrap().to_string()
@@ -96,7 +96,7 @@ impl ItemAttribute {
                 (
                     parse_quote! {
                         ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue::L(
-                            self.#field_ident.iter().map(|#e| #rec_box).collect()
+                            self.#field_ident.into_iter().map(|#e| #rec_box).collect()
                         )
                     },
                     parse_quote! {
