@@ -24,7 +24,7 @@ async fn basic() {
     table.delete(false).await.expect("Failed to delete");
     table.create(false).await.expect("Failed to create");
 
-    let it = Car {
+    let it_factory = || Car {
         make: "Porsche".to_string(),
         model: "911".to_string(),
         hp: 518,
@@ -39,30 +39,33 @@ async fn basic() {
             units: 1_100_000,
         },
     };
+    let it = it_factory();
     table.put(it).await.expect("Failed to write");
 
-    let _: Option<Car> = table
-        .get(|k| k.make("Porsche").model("911"))
-        .await
-        .expect("Failed to read");
+    let get = table.get(|k| k.make("Porsche").model("911")).await.unwrap();
+    assert!(get.unwrap() == it_factory());
 
-    let res: Result<_, _> = table
+    let res = table
         .get_item(
             |k| k.make("Porsche").model("911"),
             |r| r.consistent_read(true),
         )
         .await;
-    let _: Option<Car> = res.ok().and_then(|e| e.item().map(|i| i.into()));
+    let get: Option<Car> = res.ok().and_then(|e| e.item().map(|i| i.into()));
+    assert!(get.unwrap() == it_factory());
 
     let res = table.query(|q| q.make("Porsche").model_gt("9"));
-    let _: Vec<Car> = res.map(|e| e.ok().unwrap()).collect().await;
+    let query: Vec<Car> = res.map(|e| e.ok().unwrap()).collect().await;
+    assert!(query == vec![it_factory()]);
 
-    let _: Result<_, _> = table
+    let res = table
         .query_ext(
             |q| q.make("Porsche").model_gt("9"),
             |r| r.scan_index_forward(false),
         )
         .await;
+    let query: Vec<Car> = res.unwrap().items().iter().map(|e| e.into()).collect();
+    assert!(query == vec![it_factory()]);
 }
 
 #[tokio::test]
@@ -81,28 +84,29 @@ async fn no_sort_key() {
     table.delete(false).await.expect("Failed to delete");
     table.create(false).await.expect("Failed to create");
 
-    let it = Car {
+    let it_factory = || Car {
         make: "Porsche".to_string(),
         hp: 518,
     };
+    let it = it_factory();
     table.put(it).await.expect("Failed to write");
 
-    let _: Option<Car> = table
-        .get(|k| k.make("Porsche"))
-        .await
-        .expect("Failed to read");
+    let get = table.get(|k| k.make("Porsche")).await.unwrap();
+    assert!(get.unwrap() == it_factory());
 
-    let res: Result<_, _> = table
+    let res = table
         .get_item(|k| k.make("Porsche"), |r| r.consistent_read(true))
         .await;
-    let _: Option<Car> = res.ok().and_then(|e| e.item().map(|i| i.into()));
+    let get: Option<Car> = res.ok().and_then(|e| e.item().map(|i| i.into()));
+    assert!(get.unwrap() == it_factory());
 
     let res = table.query(|q| q.make("Porsche"));
-    let _: Vec<Car> = res.map(|e| e.ok().unwrap()).collect().await;
+    let query: Vec<Car> = res.map(|e| e.ok().unwrap()).collect().await;
+    assert!(query == vec![it_factory()]);
 
-    let _: Result<_, _> = table
-        .query_ext(|q| q.make("Porsche"), |r| r.scan_index_forward(false))
-        .await;
+    let res = table.query_ext(|q| q.make("Porsche"), |r| r.limit(1)).await;
+    let query: Vec<Car> = res.unwrap().items().iter().map(|e| e.into()).collect();
+    assert!(query == vec![it_factory()]);
 }
 
 #[tokio::test]
@@ -112,9 +116,9 @@ async fn numeric_keys() {
     #[aymond(item, table)]
     struct Cell {
         #[hash_key]
-        row: i16,
+        row: i32,
         #[sort_key]
-        col: i16,
+        col: i32,
     }
 
     let table =
@@ -122,34 +126,28 @@ async fn numeric_keys() {
     table.delete(false).await.expect("Failed to delete");
     table.create(false).await.expect("Failed to create");
 
-    let it = Cell {
-        row: 10 as i16,
-        col: 14 as i16,
-    };
+    let it_factory = || Cell { row: 10, col: 14 };
+    let it = it_factory();
     table.put(it).await.expect("Failed to write");
 
-    let _: Option<Cell> = table
-        .get(|k| k.row(10 as i16).col(14 as i16))
-        .await
-        .expect("Failed to read");
+    let get = table.get(|k| k.row(10).col(14)).await.unwrap();
+    assert!(get.unwrap() == it_factory());
 
     let res: Result<_, _> = table
-        .get_item(
-            |k| k.row(10 as i16).col(14 as i16),
-            |r| r.consistent_read(true),
-        )
+        .get_item(|k| k.row(10).col(14), |r| r.consistent_read(true))
         .await;
-    let _: Option<Cell> = res.ok().and_then(|e| e.item().map(|i| i.into()));
+    let get: Option<Cell> = res.ok().and_then(|e| e.item().map(|i| i.into()));
+    assert!(get.unwrap() == it_factory());
 
-    let res = table.query(|q| q.row(10 as i16).col_gt(10 as i16));
-    let _: Vec<Cell> = res.map(|e| e.ok().unwrap()).collect().await;
+    let res = table.query(|q| q.row(10).col_gt(10));
+    let query: Vec<Cell> = res.map(|e| e.ok().unwrap()).collect().await;
+    assert!(query == vec![it_factory()]);
 
-    let _: Result<_, _> = table
-        .query_ext(
-            |q| q.row(10 as i16).col_gt(10 as i16),
-            |r| r.scan_index_forward(false),
-        )
+    let res = table
+        .query_ext(|q| q.row(10).col_gt(10), |r| r.scan_index_forward(false))
         .await;
+    let query: Vec<Cell> = res.unwrap().items().iter().map(|e| e.into()).collect();
+    assert!(query == vec![it_factory()]);
 }
 
 #[test]

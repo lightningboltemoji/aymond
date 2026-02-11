@@ -28,7 +28,7 @@ pub fn create_nested_item(input: &mut DeriveInput) -> TokenStream {
     def.attributes.into_iter().for_each(append);
 
     quote! {
-        #[derive(Debug)]
+        #[derive(Debug, PartialEq)]
         #input
 
         impl From<&::std::collections::HashMap<String, #aws_sdk_dynamodb::types::AttributeValue>> for #name {

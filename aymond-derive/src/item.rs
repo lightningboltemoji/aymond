@@ -51,7 +51,7 @@ pub fn create_item(input: &mut DeriveInput) -> TokenStream {
     };
 
     quote! {
-        #[derive(Debug)]
+        #[derive(Debug, PartialEq)]
         #input
         #get_item
         #query
