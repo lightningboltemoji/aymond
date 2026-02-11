@@ -80,7 +80,7 @@ pub fn create_get_builder(item: &ItemDefinition) -> TokenStream {
 
             impl #query_struct {
                 fn new() -> #hash_key_struct {
-                    let q = #query_struct { hk: None, qs: None };
+                    let q = #query_struct { hk: None };
                     #hash_key_struct { q }
                 }
             }

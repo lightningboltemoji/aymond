@@ -1,4 +1,6 @@
-use aymond::{prelude::*, shim::futures::StreamExt};
+use aymond::prelude::*;
+
+mod integ;
 
 #[aymond(item, table)]
 struct Car {
@@ -20,12 +22,10 @@ struct Production {
 
 #[tokio::main]
 async fn main() {
-    // Create a table in local DynamoDB, based on our item schema
     let table = CarTable::new_with_local_config("test", "http://localhost:8000", "us-west-2");
     table.delete(false).await.expect("Failed to delete");
     table.create(false).await.expect("Failed to create");
 
-    // Write
     let it = Car {
         make: "Porsche".to_string(),
         model: "911".to_string(),
@@ -43,37 +43,8 @@ async fn main() {
     };
     table.put(it).await.expect("Failed to write");
 
-    // Read it back
     let _: Option<Car> = table
         .get(|k| k.make("Porsche").model("911"))
         .await
         .expect("Failed to read");
-
-    // Read it back, with additional options
-    let res: Result<_, _> = table
-        .get_item(
-            |k| k.make("Porsche").model("911"),
-            |r| r.consistent_read(true),
-        )
-        .await;
-    let _: Option<Car> = res.ok().and_then(|e| e.item().map(|i| i.into()));
-
-    // Query
-    let res = table.query(|q| q.make("Porsche").model_gt("9"));
-    let _: Vec<Car> = res.map(|e| e.ok().unwrap()).collect().await;
-
-    // Query, with additional options
-    let _: Result<_, _> = table
-        .query_ext(
-            |q| q.make("Porsche").model_gt("9"),
-            |r| r.scan_index_forward(false),
-        )
-        .await;
-}
-
-#[test]
-fn compile() {
-    let t = trybuild::TestCases::new();
-    t.pass("src/should_compile/*.rs");
-    t.compile_fail("src/shouldnt_compile/*.rs");
 }

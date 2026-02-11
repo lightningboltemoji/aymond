@@ -139,3 +139,17 @@ async fn main() {
 - Optimistic locking with version attribute
 - Transaction system, including cross-table
 - Projections
+
+## Development
+
+The tests assume that DynamoDB local is available on port 8000 -- start it with any container runtime:
+
+```bash
+container run --name dynamodb-local -d -p 8000:8000 amazon/dynamodb-local
+```
+
+The integration tests can be ran with:
+
+```bash
+cargo run -p aymond-test
+```
