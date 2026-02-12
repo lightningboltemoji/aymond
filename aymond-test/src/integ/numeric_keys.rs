@@ -27,12 +27,15 @@ async fn test() {
     let get: Option<Cell> = res.ok().and_then(|e| e.item().map(|i| i.into()));
     assert_eq!(get.unwrap(), it_factory());
 
-    let res = table.query(|q| q.row(10).col_gt(10));
+    let res = table.query().row(10).col_gt(10).send().await;
     let query: Vec<Cell> = res.map(|e| e.ok().unwrap()).collect().await;
     assert_eq!(query, vec![it_factory()]);
 
     let res = table
-        .query_ext(|q| q.row(10).col_gt(10), |r| r.scan_index_forward(false))
+        .query()
+        .row(10)
+        .col_gt(10)
+        .raw(|r| r.scan_index_forward(false))
         .await;
     let query: Vec<Cell> = res.unwrap().items().iter().map(|e| e.into()).collect();
     assert_eq!(query, vec![it_factory()]);

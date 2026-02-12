@@ -57,15 +57,15 @@ async fn test() {
     let get: Option<Car> = res.item().map(|i| i.into());
     assert_eq!(get.unwrap(), it_factory());
 
-    let res = table.query(|q| q.make("Porsche").model_gt("9"));
+    let res = table.query().make("Porsche").model_gt("9").send().await;
     let query: Vec<Car> = res.map(|e| e.ok().unwrap()).collect().await;
     assert_eq!(query, vec![it_factory()]);
 
     let res = table
-        .query_ext(
-            |q| q.make("Porsche").model_gt("9"),
-            |r| r.scan_index_forward(false),
-        )
+        .query()
+        .make("Porsche")
+        .model_gt("9")
+        .raw(|r| r.scan_index_forward(false))
         .await;
     let query: Vec<Car> = res.unwrap().items().iter().map(|e| e.into()).collect();
     assert_eq!(query, vec![it_factory()]);

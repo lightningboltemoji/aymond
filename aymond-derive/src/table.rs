@@ -27,7 +27,7 @@ pub fn create_table(def: &ItemDefinition) -> TokenStream {
             table_name: String,
         }
 
-        impl<'a> Table<'a, #name, #get_item_struct<'a>, #get_item_hash_key_struct<'a>, #query_struct, #query_hash_key_struct> for #table_struct {
+        impl<'a> Table<'a, #name, #get_item_struct<'a>, #get_item_hash_key_struct<'a>, #query_struct<'a>, #query_hash_key_struct<'a>> for #table_struct {
 
             fn new_with_local_config(
                 table_name: impl Into<String>,
@@ -148,51 +148,8 @@ pub fn create_table(def: &ItemDefinition) -> TokenStream {
                 Ok(())
             }
 
-            async fn query_ext<QF, F>(&self, q: QF, f: F) -> Result<
-                #aws_sdk_dynamodb::operation::query::QueryOutput,
-                #aws_sdk_dynamodb::error::SdkError<
-                    #aws_sdk_dynamodb::operation::query::QueryError,
-                    #aws_sdk_dynamodb::config::http::HttpResponse
-                >
-            >
-                where
-                    QF: FnOnce(#query_hash_key_struct) -> #query_struct,
-                    F: FnOnce(#aws_sdk_dynamodb::operation::query::builders::QueryFluentBuilder)
-                        -> #aws_sdk_dynamodb::operation::query::builders::QueryFluentBuilder
-            {
-                let q = q(#query_struct::new());
-                let (key_expr, attr_names, attr_values) = q.into();
-                f(self.client.query())
-                    .table_name(&self.table_name)
-                    .set_key_condition_expression(Some(key_expr))
-                    .set_expression_attribute_names(Some(attr_names))
-                    .set_expression_attribute_values(Some(attr_values))
-                    .send()
-                    .await
-            }
-
-            fn query<QF>(&self, q: QF) -> impl ::aymond::shim::futures::Stream<
-                Item = Result<#name, #aws_sdk_dynamodb::error::SdkError<
-                    #aws_sdk_dynamodb::operation::query::QueryError,
-                    #aws_sdk_dynamodb::config::http::HttpResponse>
-                >
-            > + 'a
-                where
-                    QF: FnOnce(#query_hash_key_struct) -> #query_struct
-            {
-                let q = q(#query_struct::new());
-                let (key_expr, attr_names, attr_values) = q.into();
-                let pagination = self.client.query()
-                    .table_name(&self.table_name)
-                    .set_key_condition_expression(Some(key_expr))
-                    .set_expression_attribute_names(Some(attr_names))
-                    .set_expression_attribute_values(Some(attr_values))
-                    .into_paginator()
-                    .items()
-                    .send();
-                ::aymond::shim::futures::stream::unfold(pagination, |mut p| async move {
-                    p.next().await.map(|item| (item.map(|i| (&i).into()), p))
-                })
+            fn query(&'a self) -> #query_hash_key_struct<'a> {
+                #query_struct::new(self)
             }
         }
     }

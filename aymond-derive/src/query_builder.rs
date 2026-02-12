@@ -6,6 +6,8 @@ use syn::{Expr, parse_quote};
 pub fn create_query_builder(item: &ItemDefinition) -> TokenStream {
     let aws_sdk_dynamodb: Expr = parse_quote!(::aymond::shim::aws_sdk_dynamodb);
 
+    let item_struct = format_ident!("{}", &item.name);
+    let table_struct = format_ident!("{}Table", &item.name);
     let query_struct = format_ident!("{}Query", &item.name);
     let hash_key_struct = format_ident!("{}QueryHashKey", &item.name);
 
@@ -27,40 +29,41 @@ pub fn create_query_builder(item: &ItemDefinition) -> TokenStream {
         let sort_key_c_boxer = sort_key.key_boxer_for(&parse_quote!(self.c.unwrap()));
 
         chunks.push(quote! {
-            struct #hash_key_struct {
-                q: #query_struct,
+            struct #hash_key_struct<'a> {
+                q: #query_struct<'a>,
             }
 
-            struct #query_struct {
+            struct #query_struct<'a> {
+                table: &'a #table_struct,
                 hk: Option<#hash_key_typ>,
                 qs: Option<String>,
                 b: Option<#sort_key_typ>,
                 c: Option<#sort_key_typ>,
             }
 
-            impl #query_struct {
-                fn new() -> #hash_key_struct {
-                    let q = #query_struct { hk: None, qs: None, b: None, c: None };
+            impl<'a> #query_struct<'a> {
+                fn new(table: &'a #table_struct) -> #hash_key_struct<'a> {
+                    let q = #query_struct { table, hk: None, qs: None, b: None, c: None };
                     #hash_key_struct { q }
                 }
             }
 
-            impl #hash_key_struct {
-                fn #hash_key_ident (mut self, v: impl Into<#hash_key_typ>) -> #sort_key_struct {
+            impl<'a> #hash_key_struct<'a> {
+                fn #hash_key_ident (mut self, v: impl Into<#hash_key_typ>) -> #sort_key_struct<'a> {
                     self.q.hk = Some(v.into());
                     #sort_key_struct { q: self.q }
                 }
             }
 
-            struct #sort_key_struct {
-                q: #query_struct,
+            struct #sort_key_struct<'a> {
+                q: #query_struct<'a>,
             }
 
-            impl Into<(
+            impl<'a> Into<(
                 String,
                 ::std::collections::HashMap<String, String>,
                 ::std::collections::HashMap<String, #aws_sdk_dynamodb::types::AttributeValue>,
-            )> for #query_struct {
+            )> for #query_struct<'a> {
                 fn into(self) -> (
                     String,
                     ::std::collections::HashMap<String, String>,
@@ -123,8 +126,8 @@ pub fn create_query_builder(item: &ItemDefinition) -> TokenStream {
 
         for (fn_name, key_expression, vars) in comparisons {
             chunks.push(quote! {
-                impl #sort_key_struct {
-                    fn #fn_name (mut self, #( #vars: impl Into<#sort_key_typ>, )*) -> #query_struct {
+                impl<'a> #sort_key_struct<'a> {
+                    fn #fn_name (mut self, #( #vars: impl Into<#sort_key_typ>, )*) -> #query_struct<'a> {
                         self.q.qs = Some(#key_expression.into());
                         #( self.q.#vars = Some(#vars.into()); )*
                         self.q
@@ -134,35 +137,36 @@ pub fn create_query_builder(item: &ItemDefinition) -> TokenStream {
         }
     } else {
         chunks.push(quote! {
-            struct #hash_key_struct {
-                q: #query_struct,
+            struct #hash_key_struct<'a> {
+                q: #query_struct<'a>,
             }
 
-            struct #query_struct {
+            struct #query_struct<'a> {
+                table: &'a #table_struct,
                 hk: Option<#hash_key_typ>,
                 qs: Option<String>,
             }
 
-            impl #query_struct {
-                fn new() -> #hash_key_struct {
-                    let q = #query_struct { hk: None, qs: None };
+            impl<'a> #query_struct<'a> {
+                fn new(table: &'a #table_struct) -> #hash_key_struct {
+                    let q = #query_struct { table, hk: None, qs: None };
                     #hash_key_struct { q }
                 }
             }
 
-            impl #hash_key_struct {
-                fn #hash_key_ident (mut self, v: impl Into<#hash_key_typ>) -> #query_struct {
+            impl<'a> #hash_key_struct<'a> {
+                fn #hash_key_ident (mut self, v: impl Into<#hash_key_typ>) -> #query_struct<'a> {
                     self.q.hk = Some(v.into());
                     self.q.qs = Some("#hk = :hk".into());
                     self.q
                 }
             }
 
-            impl Into<(
+            impl<'a> Into<(
                 String,
                 ::std::collections::HashMap<String, String>,
                 ::std::collections::HashMap<String, #aws_sdk_dynamodb::types::AttributeValue>,
-            )> for #query_struct {
+            )> for #query_struct<'a> {
                 fn into(self) -> (
                     String,
                     ::std::collections::HashMap<String, String>,
@@ -184,5 +188,54 @@ pub fn create_query_builder(item: &ItemDefinition) -> TokenStream {
 
     quote! {
         #( #chunks )*
+
+        impl<'a> #query_struct<'a> {
+            async fn send(self) -> impl ::aymond::shim::futures::Stream<Item = Result<#item_struct, ::aymond::shim::aws_sdk_dynamodb::error::SdkError<
+                ::aymond::shim::aws_sdk_dynamodb::operation::query::QueryError,
+                ::aymond::shim::aws_sdk_dynamodb::config::http::HttpResponse
+            >>> + 'a
+            {
+                let query = self.table.client.query();
+                let table_name = &self.table.table_name;
+                let (key_expr, attr_names, attr_values) = self.into();
+                let pagination = query
+                    .table_name(table_name)
+                    .set_key_condition_expression(Some(key_expr))
+                    .set_expression_attribute_names(Some(attr_names))
+                    .set_expression_attribute_values(Some(attr_values))
+                    .into_paginator()
+                    .items()
+                    .send();
+                ::aymond::shim::futures::stream::unfold(pagination, |mut p| async move {
+                    p.next().await.map(|item| (item.map(|i| (&i).into()), p))
+                })
+            }
+
+            async fn raw<F>(
+                self,
+                f: F,
+            ) -> Result<
+                ::aymond::shim::aws_sdk_dynamodb::operation::query::QueryOutput,
+                ::aymond::shim::aws_sdk_dynamodb::error::SdkError<
+                    ::aymond::shim::aws_sdk_dynamodb::operation::query::QueryError,
+                    ::aymond::shim::aws_sdk_dynamodb::config::http::HttpResponse,
+                >,
+            >
+            where
+                F: FnOnce(#aws_sdk_dynamodb::operation::query::builders::QueryFluentBuilder)
+                -> #aws_sdk_dynamodb::operation::query::builders::QueryFluentBuilder
+            {
+                let query = f(self.table.client.query());
+                let table_name = &self.table.table_name;
+                let (key_expr, attr_names, attr_values) = self.into();
+                query
+                    .table_name(table_name)
+                    .set_key_condition_expression(Some(key_expr))
+                    .set_expression_attribute_names(Some(attr_names))
+                    .set_expression_attribute_values(Some(attr_values))
+                    .send()
+                    .await
+            }
+        }
     }
 }

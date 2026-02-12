@@ -5,11 +5,9 @@ use aws_sdk_dynamodb::{
         create_table::CreateTableError,
         delete_table::DeleteTableError,
         put_item::{PutItemError, PutItemOutput, builders::PutItemFluentBuilder},
-        query::{QueryError, QueryOutput, builders::QueryFluentBuilder},
     },
     types::{AttributeDefinition, AttributeValue, KeySchemaElement},
 };
-use futures::Stream;
 use std::{collections::HashMap, sync::Arc};
 
 pub trait NestedItem:
@@ -73,19 +71,5 @@ where
         t: T,
     ) -> impl Future<Output = Result<(), SdkError<PutItemError, HttpResponse>>> + Send;
 
-    fn query_ext<QF, F>(
-        &self,
-        q: QF,
-        f: F,
-    ) -> impl Future<Output = Result<QueryOutput, SdkError<QueryError, HttpResponse>>>
-    where
-        QF: FnOnce(QHK) -> Q,
-        F: FnOnce(QueryFluentBuilder) -> QueryFluentBuilder;
-
-    fn query<QF>(
-        &self,
-        q: QF,
-    ) -> impl Stream<Item = Result<T, SdkError<QueryError, HttpResponse>>> + 'a
-    where
-        QF: FnOnce(QHK) -> Q;
+    fn query(&'a self) -> QHK;
 }

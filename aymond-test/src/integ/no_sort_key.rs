@@ -29,11 +29,11 @@ async fn test() {
     let get: Option<Car> = res.ok().and_then(|e| e.item().map(|i| i.into()));
     assert_eq!(get.unwrap(), it_factory());
 
-    let res = table.query(|q| q.make("Porsche"));
+    let res = table.query().make("Porsche").send().await;
     let query: Vec<Car> = res.map(|e| e.ok().unwrap()).collect().await;
     assert_eq!(query, vec![it_factory()]);
 
-    let res = table.query_ext(|q| q.make("Porsche"), |r| r.limit(1)).await;
+    let res = table.query().make("Porsche").raw(|r| r.limit(1)).await;
     let query: Vec<Car> = res.unwrap().items().iter().map(|e| e.into()).collect();
     assert_eq!(query, vec![it_factory()]);
 }
