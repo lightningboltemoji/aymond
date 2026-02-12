@@ -1,11 +1,7 @@
 use aws_sdk_dynamodb::{
     config::http::HttpResponse,
     error::SdkError,
-    operation::{
-        create_table::CreateTableError,
-        delete_table::DeleteTableError,
-        put_item::{PutItemError, PutItemOutput, builders::PutItemFluentBuilder},
-    },
+    operation::{create_table::CreateTableError, delete_table::DeleteTableError},
     types::{AttributeDefinition, AttributeValue, KeySchemaElement},
 };
 use std::{collections::HashMap, sync::Arc};
@@ -22,7 +18,7 @@ pub trait Item:
     fn key_attribute_defintions() -> Vec<AttributeDefinition>;
 }
 
-pub trait Table<'a, T, G, GHK, Q, QHK>
+pub trait Table<'a, T, G, GHK, P, Q, QHK>
 where
     T: Item,
     GHK: 'a,
@@ -58,18 +54,7 @@ where
 
     fn get(&'a self) -> GHK;
 
-    fn put_item<F>(
-        &self,
-        t: T,
-        f: F,
-    ) -> impl Future<Output = Result<PutItemOutput, SdkError<PutItemError, HttpResponse>>>
-    where
-        F: FnOnce(PutItemFluentBuilder) -> PutItemFluentBuilder;
-
-    fn put(
-        &self,
-        t: T,
-    ) -> impl Future<Output = Result<(), SdkError<PutItemError, HttpResponse>>> + Send;
+    fn put(&'a self) -> P;
 
     fn query(&'a self) -> QHK;
 }

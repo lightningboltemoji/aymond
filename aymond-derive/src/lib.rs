@@ -6,15 +6,16 @@ use crate::{
     definition::{ItemAttribute, ItemDefinition, NestedItemDefinition},
     item::create_item,
     nested_item::create_nested_item,
-    query_builder::create_query_builder,
+    query::create_query_builder,
     table::create_table,
 };
 
 mod definition;
-mod get_builder;
+mod get_item;
 mod item;
 mod nested_item;
-mod query_builder;
+mod put_item;
+mod query;
 mod table;
 
 #[proc_macro_attribute]

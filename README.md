@@ -54,7 +54,7 @@ let it = Car {
         units: 1_100_000,
     },
 };
-table.put(it).await.expect("Failed to write");
+table.put().item(it).send().await.expect("Failed to write");
 ```
 
 Reading an item with `get`:
@@ -110,7 +110,7 @@ async fn main() {
             units: 1_100_000,
         },
     };
-    table.put(it).await.expect("Failed to write");
+    table.put().item(it).send().await.expect("Failed to write");
 
     // Read it back
     let req = table.get().make("Porsche").model("911");

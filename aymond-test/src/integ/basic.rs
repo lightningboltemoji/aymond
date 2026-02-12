@@ -40,7 +40,7 @@ async fn test() {
         },
     };
     let it = it_factory();
-    table.put(it).await.expect("Failed to write");
+    table.put().item(it).send().await.expect("Failed to write");
 
     let req = table.get().make("Porsche").model("911");
     let get = req.send().await.unwrap();

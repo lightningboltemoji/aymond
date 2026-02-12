@@ -17,7 +17,7 @@ async fn test() {
 
     let it_factory = || Cell { row: 10, col: 14 };
     let it = it_factory();
-    table.put(it).await.expect("Failed to write");
+    table.put().item(it).send().await.expect("Failed to write");
 
     let get = table.get().row(10).col(14).send().await.unwrap();
     assert_eq!(get.unwrap(), it_factory());

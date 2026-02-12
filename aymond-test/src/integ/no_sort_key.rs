@@ -19,7 +19,7 @@ async fn test() {
         hp: 518,
     };
     let it = it_factory();
-    table.put(it).await.expect("Failed to write");
+    table.put().item(it).send().await.expect("Failed to write");
 
     let get = table.get().make("Porsche").send().await.unwrap();
     assert_eq!(get.unwrap(), it_factory());

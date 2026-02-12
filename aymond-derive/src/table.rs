@@ -2,7 +2,10 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{Expr, parse_quote};
 
-use crate::{ItemDefinition, create_query_builder, get_builder::create_get_builder};
+use crate::{
+    ItemDefinition, create_query_builder, get_item::create_get_builder,
+    put_item::create_put_item_builder,
+};
 
 pub fn create_table(def: &ItemDefinition) -> TokenStream {
     let aws_types: Expr = parse_quote!(::aymond::shim::aws_types);
@@ -12,13 +15,16 @@ pub fn create_table(def: &ItemDefinition) -> TokenStream {
     let table_struct = format_ident!("{}Table", &name);
     let get_item_struct = format_ident!("{}GetItem", &name);
     let get_item_hash_key_struct = format_ident!("{}GetItemHashKey", &name);
+    let put_item_struct = format_ident!("{}PutItem", &name);
     let query_struct = format_ident!("{}Query", &name);
     let query_hash_key_struct = format_ident!("{}QueryHashKey", &name);
 
     let get_item = create_get_builder(&def);
+    let put_item = create_put_item_builder(&def);
     let query = create_query_builder(&def);
     quote! {
         #get_item
+        #put_item
         #query
 
         #[derive(Debug)]
@@ -27,7 +33,7 @@ pub fn create_table(def: &ItemDefinition) -> TokenStream {
             table_name: String,
         }
 
-        impl<'a> Table<'a, #name, #get_item_struct<'a>, #get_item_hash_key_struct<'a>, #query_struct<'a>, #query_hash_key_struct<'a>> for #table_struct {
+        impl<'a> Table<'a, #name, #get_item_struct<'a>, #get_item_hash_key_struct<'a>, #put_item_struct<'a>, #query_struct<'a>, #query_hash_key_struct<'a>> for #table_struct {
 
             fn new_with_local_config(
                 table_name: impl Into<String>,
@@ -120,32 +126,8 @@ pub fn create_table(def: &ItemDefinition) -> TokenStream {
                 #get_item_struct::new(self)
             }
 
-            async fn put_item<F>(&self, t: #name, f: F) -> Result<
-                #aws_sdk_dynamodb::operation::put_item::PutItemOutput,
-                #aws_sdk_dynamodb::error::SdkError<
-                    #aws_sdk_dynamodb::operation::put_item::PutItemError,
-                    #aws_sdk_dynamodb::config::http::HttpResponse
-                >
-            >
-                where F: FnOnce(#aws_sdk_dynamodb::operation::put_item::builders::PutItemFluentBuilder)
-                    -> #aws_sdk_dynamodb::operation::put_item::builders::PutItemFluentBuilder
-            {
-                f(self.client.put_item())
-                    .table_name(&self.table_name)
-                    .set_item(Some(t.into()))
-                    .send()
-                    .await
-            }
-
-            async fn put(&self, t: #name) -> Result<
-                (),
-                #aws_sdk_dynamodb::error::SdkError<
-                    #aws_sdk_dynamodb::operation::put_item::PutItemError,
-                    #aws_sdk_dynamodb::config::http::HttpResponse
-                >
-            > {
-                self.put_item(t, |r| r).await?;
-                Ok(())
+            fn put(&'a self) -> #put_item_struct<'a> {
+                #put_item_struct::new(self)
             }
 
             fn query(&'a self) -> #query_hash_key_struct<'a> {

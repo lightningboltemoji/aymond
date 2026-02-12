@@ -135,8 +135,7 @@ pub fn create_get_builder(item: &ItemDefinition) -> TokenStream {
                 F: FnOnce(#aws_sdk_dynamodb::operation::get_item::builders::GetItemFluentBuilder)
                 -> #aws_sdk_dynamodb::operation::get_item::builders::GetItemFluentBuilder
             {
-                let r = f(self.table.client.get_item());
-                r
+                f(self.table.client.get_item())
                     .table_name(&self.table.table_name)
                     .set_key(Some(self.into()))
                     .send()

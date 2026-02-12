@@ -41,7 +41,7 @@ async fn main() {
             units: 1_100_000,
         },
     };
-    table.put(it).await.expect("Failed to write");
+    table.put().item(it).send().await.expect("Failed to write");
 
     let _ = table.get().make("Porsche").model("911").send().await;
 }
