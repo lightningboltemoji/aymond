@@ -1,7 +1,7 @@
 error: custom attribute panicked
  --> src/shouldnt_compile/no_hash_key.rs:3:1
   |
-3 | #[aymond(item, table)]
-  | ^^^^^^^^^^^^^^^^^^^^^^
+3 | #[aymond(item)]
+  | ^^^^^^^^^^^^^^^
   |
   = help: message: #[hash_key] must be defined

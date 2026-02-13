@@ -26,7 +26,7 @@ async fn main() {
     table.delete(false).await.expect("Failed to delete");
     table.create(false).await.expect("Failed to create");
 
-    let it = Car {
+    let it = || Car {
         make: "Porsche".to_string(),
         model: "911".to_string(),
         hp: 518,
@@ -41,7 +41,15 @@ async fn main() {
             units: 1_100_000,
         },
     };
-    table.put().item(it).send().await.expect("Failed to write");
+    table.put().item(it()).send().await.unwrap();
+
+    table
+        .put()
+        .item(it())
+        .condition(|c| c.hp_eq(516))
+        .send()
+        .await
+        .unwrap();
 
     let _ = table.get().make("Porsche").model("911").send().await;
 }

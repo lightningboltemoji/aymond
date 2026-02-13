@@ -69,14 +69,18 @@ impl ItemAttribute {
     }
 
     pub fn box_unbox(&self) -> (Expr, Expr) {
+        let ident = &self.ident;
+        self.box_unbox_for(&parse_quote!(self.#ident))
+    }
+
+    pub fn box_unbox_for(&self, ident: &Expr) -> (Expr, Expr) {
         let attr_name = &self.attr_name;
-        let field_ident = &self.ident;
         let mut typ: Vec<String> = vec![];
         collect_type_idents(&self.ty, &mut typ);
         match typ.remove(0).as_str() {
             "i8" | "i16" | "i32" | "i64" | "i128" | "u8" | "u16" | "u32" | "u64" | "u128" => (
                 parse_quote! {
-                    ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue::N(self.#field_ident.to_string())
+                    ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue::N(#ident.to_string())
                 },
                 parse_quote! {
                     map.get(#attr_name).unwrap().as_n().unwrap().parse().unwrap()
@@ -84,7 +88,7 @@ impl ItemAttribute {
             ),
             "String" => (
                 parse_quote! {
-                    ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue::S(self.#field_ident)
+                    ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue::S(#ident)
                 },
                 parse_quote! {
                     map.get(#attr_name).unwrap().as_s().unwrap().to_string()
@@ -96,7 +100,7 @@ impl ItemAttribute {
                 (
                     parse_quote! {
                         ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue::L(
-                            self.#field_ident.into_iter().map(|#e| #rec_box).collect()
+                            #ident.into_iter().map(|#e| #rec_box).collect()
                         )
                     },
                     parse_quote! {
@@ -107,7 +111,7 @@ impl ItemAttribute {
             // We assume this is a struct if it's otherwise not recognized
             _ => (
                 parse_quote! {
-                    ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue::M(self.#field_ident.into())
+                    ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue::M(#ident.into())
                 },
                 parse_quote! {
                     map.get(#attr_name).unwrap().as_m().unwrap().into()

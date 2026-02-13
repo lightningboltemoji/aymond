@@ -10,7 +10,7 @@ license = "MIT OR Apache-2.0"
 edition = "2024"
 
 [dependencies]
-aymond = { version = "0.1.0", path = "../aymond" }
-aymond-derive = { version = "0.1.0", path = "../aymond-derive" }
+aymond = { version = "*", path = "../aymond" }
+aymond-derive = { version = "*", path = "../aymond-derive" }
 tokio = { version = "1.49.0", features = ["full"] }
 trybuild = "1.0.115"

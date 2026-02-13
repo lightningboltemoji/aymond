@@ -1,6 +1,6 @@
 use aymond::prelude::*;
 
-#[aymond(item, table)]
+#[aymond(item)]
 struct Car {
     make: String,
 }
