@@ -92,7 +92,7 @@ fn create_condition_builder(item: &ItemDefinition) -> (TokenStream, Ident) {
     let ident = format_ident!("{}PutItemCondition", &item.name);
 
     let mut statics: Vec<TokenStream> = vec![];
-    for (fn_name, val) in vec![
+    for (fn_name, val) in [
         ("and", "AND"),
         ("or", "OR"),
         ("not", "NOT"),
@@ -108,32 +108,29 @@ fn create_condition_builder(item: &ItemDefinition) -> (TokenStream, Ident) {
         });
     }
 
-    let mut attribute_ops: Vec<TokenStream> = vec![];
-    let mut add_attribute_ops = |i: &ItemAttribute| {
-        let attr_name = &i.attr_name;
-        let attr_typ = i.ty_non_option();
-        let boxer = if attr_typ != &i.ty {
-            i.into_attribute_value(&parse_quote!(Some(v)))
-        } else {
-            i.into_attribute_value(&parse_quote!(v))
-        };
-        let fn_name = format_ident!("{}_eq", &i.ident);
-        attribute_ops.push(quote! {
-            fn #fn_name(mut self, v: #attr_typ) -> Self {
-                let id = self.cur;
-                self.cur = (id as u8 + 1) as char;
-                self.fragments.push(format!("#{0} = :{0}", id));
-                self.expr_name.insert(format!("#{}", id), #attr_name.to_string());
-                self.expr_value.insert(format!(":{}", id), #boxer);
-                self
+    let attribute_ops: Vec<TokenStream> = item
+        .all_attributes()
+        .map(|i: &ItemAttribute| {
+            let attr_name = &i.ddb_name;
+            let attr_typ = &i.ty_value;
+            let boxer = if i.is_option {
+                i.to_attribute_value(&parse_quote!(Some(v)))
+            } else {
+                i.to_attribute_value(&parse_quote!(v))
+            };
+            let fn_name = format_ident!("{}_eq", &i.field);
+            quote! {
+                fn #fn_name(mut self, v: #attr_typ) -> Self {
+                    let id = self.cur;
+                    self.cur = (id as u8 + 1) as char;
+                    self.fragments.push(format!("#{0} = :{0}", id));
+                    self.expr_name.insert(format!("#{}", id), #attr_name.to_string());
+                    self.expr_value.insert(format!(":{}", id), #boxer);
+                    self
+                }
             }
-        });
-    };
-    item.hash_key.iter().for_each(&mut add_attribute_ops);
-    item.sort_key.iter().for_each(&mut add_attribute_ops);
-    item.other_attributes
-        .iter()
-        .for_each(&mut add_attribute_ops);
+        })
+        .collect();
 
     let imp = quote! {
         struct #ident {

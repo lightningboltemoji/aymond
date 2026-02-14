@@ -13,6 +13,7 @@ use crate::{
 mod definition;
 mod get_item;
 mod item;
+mod marshal;
 mod nested_item;
 mod put_item;
 mod query;

@@ -8,9 +8,12 @@ use syn::{
 };
 
 pub struct ItemAttribute {
-    pub ident: Ident,
-    pub attr_name: String,
+    pub field: Ident,
+    pub ddb_name: String,
     pub ty: Type,
+    pub ty_value: Type,
+    pub is_option: bool,
+    pub generics_hierarchy: Vec<String>,
 }
 
 pub struct ItemDefinition {
@@ -21,105 +24,102 @@ pub struct ItemDefinition {
 }
 
 impl ItemAttribute {
-    pub fn insert_into_map(&self, ident: &TokenStream, map: &TokenStream) -> TokenStream {
-        let attr_name = &self.attr_name;
-        let boxer = self.into_attribute_value(ident);
-        if self.type_paths()[0].as_str() == "Option" {
-            parse_quote! {
-                if #ident.is_some() {
-                    #map.insert(#attr_name.to_string(), #boxer);
-                }
-            }
-        } else {
-            parse_quote! {
-                #map.insert(#attr_name.to_string(), #boxer);
-            }
+    pub fn new(field: Ident, ddb_name: String, ty: Type) -> Self {
+        let generics_hierarchy = Self::generics_hierarchy(&ty);
+        let is_option = generics_hierarchy[0] == "Option";
+        let ty_value = Self::ty_value(&ty, is_option);
+        ItemAttribute {
+            field,
+            ddb_name,
+            ty,
+            ty_value,
+            is_option,
+            generics_hierarchy,
         }
     }
 
-    pub fn into_attribute_value(&self, ident: &TokenStream) -> Expr {
-        let mut typ = self.type_paths();
-        Self::into_attribute_value_inner(ident, &mut typ)
+    pub fn generics_hierarchy(ty: &Type) -> Vec<String> {
+        fn collect(ty: &Type, idents: &mut Vec<String>) {
+            if let Type::Path(type_path) = ty {
+                for segment in &type_path.path.segments {
+                    idents.push(segment.ident.to_string());
+
+                    if let PathArguments::AngleBracketed(args) = &segment.arguments {
+                        let arg = &args.args.first().unwrap();
+                        if let GenericArgument::Type(inner_ty) = arg {
+                            collect(inner_ty, idents);
+                        }
+                    }
+                }
+            }
+        }
+        let mut idents = vec![];
+        collect(ty, &mut idents);
+        idents
     }
 
-    fn into_attribute_value_inner(ident: &TokenStream, typ: &mut Vec<String>) -> Expr {
-        match typ.remove(0).as_str() {
+    pub fn insert_into_map(&self, ident: &TokenStream, map: &TokenStream) -> TokenStream {
+        let attr_name = &self.ddb_name;
+        let boxer = self.to_attribute_value(ident);
+        let insert: TokenStream = parse_quote!(#map.insert(#attr_name.to_string(), #boxer););
+        if self.is_option {
+            return parse_quote! {
+                if #ident.is_some() {
+                    #insert
+                }
+            };
+        }
+        insert
+    }
+
+    pub fn to_attribute_value(&self, ident: &TokenStream) -> Expr {
+        self.to_attribute_value_inner(ident, 0)
+    }
+
+    fn to_attribute_value_inner(&self, ident: &TokenStream, hier: usize) -> Expr {
+        let attr_val: TokenStream =
+            parse_quote!(::aymond::shim::aws_sdk_dynamodb::types::AttributeValue);
+        match self.generics_hierarchy[hier].as_str() {
             "i8" | "i16" | "i32" | "i64" | "i128" | "u8" | "u16" | "u32" | "u64" | "u128" => {
-                parse_quote! {
-                    ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue::N(#ident.to_string())
-                }
+                parse_quote! (#attr_val::N(#ident.to_string()))
             }
-            "String" => parse_quote! {
-                ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue::S(#ident.to_string())
-            },
+            "String" => parse_quote!(#attr_val::S(#ident.to_string())),
             "Vec" => {
-                let rec = ItemAttribute::into_attribute_value_inner(&parse_quote!(e), typ);
-                parse_quote! {
-                    ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue::L(
-                        #ident.iter().map(|e| #rec).collect()
-                    )
-                }
+                let rec = self.to_attribute_value_inner(&parse_quote!(e), hier + 1);
+                parse_quote!(#attr_val::L(#ident.iter().map(|e| #rec).collect()))
             }
-            "Option" => Self::into_attribute_value_inner(&parse_quote!(#ident.unwrap()), typ),
+            "Option" => self.to_attribute_value_inner(&parse_quote!(#ident.unwrap()), hier + 1),
             // We assume this is a struct if it's otherwise not recognized
-            _ => parse_quote! {
-                ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue::M(#ident.into())
-            },
+            _ => parse_quote!(#attr_val::M(#ident.into())),
         }
     }
 
     pub fn from_attribute_value(&self, ident: &Expr) -> Expr {
-        let mut typ = self.type_paths();
-        Self::from_attribute_value_inner(ident, &mut typ, false)
+        self.from_attribute_value_inner(ident, if self.is_option { 1 } else { 0 })
     }
 
-    pub fn from_attribute_value_inner(
-        ident: &Expr,
-        typ: &mut Vec<String>,
-        as_option: bool,
-    ) -> Expr {
-        match typ.remove(0).as_str() {
-            "i8" | "i16" | "i32" | "i64" | "i128" | "u8" | "u16" | "u32" | "u64" | "u128" => {
-                if as_option {
-                    parse_quote! {
-                        #ident.as_n().ok().map(|e| e.parse().unwrap())
-                    }
-                } else {
-                    parse_quote! {
-                        #ident.as_n().unwrap().parse().unwrap()
-                    }
+    fn from_attribute_value_inner(&self, ident: &Expr, hier: usize) -> Expr {
+        let (as_, get_value): (TokenStream, TokenStream) =
+            match self.generics_hierarchy[hier].as_str() {
+                "i8" | "i16" | "i32" | "i64" | "i128" | "u8" | "u16" | "u32" | "u64" | "u128" => {
+                    (parse_quote!(.as_n()), parse_quote!(.parse().unwrap()))
                 }
-            }
-            "String" => {
-                if as_option {
-                    parse_quote! {
-                        #ident.as_s().ok().map(|e| e.to_string())
-                    }
-                } else {
-                    parse_quote! {
-                        #ident.as_s().unwrap().to_string()
-                    }
+                "String" => (parse_quote!(.as_s()), parse_quote!(.to_string())),
+                "Vec" => {
+                    let rec = self.from_attribute_value_inner(&parse_quote!(e), hier + 1);
+                    (
+                        parse_quote!(.as_l()),
+                        parse_quote!(.iter().map(|e| #rec).collect()),
+                    )
                 }
-            }
-            "Vec" => {
-                let rec = Self::from_attribute_value_inner(&parse_quote!(e), typ, false);
-                if as_option {
-                    parse_quote! {
-                        #ident.as_l().ok().map(|l| l.iter().map(|e| #rec).collect())
-                    }
-                } else {
-                    parse_quote! {
-                        #ident.as_l().unwrap().iter().map(|e| #rec).collect()
-                    }
-                }
-            }
-            "Option" => Self::from_attribute_value_inner(ident, typ, true),
-            // We assume this is a struct if it's otherwise not recognized
-            _ => {
-                parse_quote! {
-                    #ident.as_m().unwrap().into()
-                }
-            }
+                // We assume this is a struct if it's otherwise not recognized
+                _ => (parse_quote!(.as_m()), parse_quote!(.into())),
+            };
+
+        if hier == 1 && self.is_option {
+            parse_quote!(#ident #as_ .ok().map(|e| e #get_value))
+        } else {
+            parse_quote!(#ident #as_ .unwrap() #get_value)
         }
     }
 
@@ -136,41 +136,15 @@ impl ItemAttribute {
         }
     }
 
-    pub fn ty_non_option(&self) -> &Type {
-        if let Type::Path(TypePath { path, .. }) = &self.ty {
-            let last_segment = path.segments.last();
-            if last_segment.is_none() || last_segment.unwrap().ident != "Option" {
-                return &self.ty;
-            }
-
-            if let PathArguments::AngleBracketed(args) = &last_segment.unwrap().arguments {
-                if let Some(GenericArgument::Type(inner_ty)) = args.args.first() {
-                    return inner_ty;
-                }
-            }
+    pub fn ty_value(ty: &Type, is_option: bool) -> Type {
+        if is_option
+            && let Type::Path(TypePath { path, .. }) = ty
+            && let PathArguments::AngleBracketed(args) = &path.segments.first().unwrap().arguments
+            && let Some(GenericArgument::Type(inner_ty)) = args.args.first()
+        {
+            return inner_ty.clone();
         }
-        &self.ty
-    }
-
-    pub fn type_paths(&self) -> Vec<String> {
-        fn collect(ty: &Type, idents: &mut Vec<String>) {
-            if let Type::Path(type_path) = ty {
-                for segment in &type_path.path.segments {
-                    idents.push(segment.ident.to_string());
-
-                    if let PathArguments::AngleBracketed(args) = &segment.arguments {
-                        for arg in &args.args {
-                            if let GenericArgument::Type(inner_ty) = arg {
-                                collect(inner_ty, idents);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        let mut idents = vec![];
-        collect(&self.ty, &mut idents);
-        idents
+        ty.clone()
     }
 }
 
@@ -204,16 +178,12 @@ impl ItemDefinition {
             let field_name = field.ident.as_ref().unwrap().to_string();
             let source = hash.or(sort).or(attribute);
             let attr_name = source
-                .map(extract_attributes)
+                .map(Self::extract_attributes)
                 .and_then(|mut a| a.remove("name"))
                 .unwrap_or(field_name);
 
             let ty = field.ty.clone();
-            let item_attribute = ItemAttribute {
-                ident: field.ident.clone().unwrap(),
-                attr_name,
-                ty,
-            };
+            let item_attribute = ItemAttribute::new(field.ident.clone().unwrap(), attr_name, ty);
 
             if hash.is_some() {
                 hash_key = Some(item_attribute);
@@ -223,13 +193,9 @@ impl ItemDefinition {
                 other_attributes.push(item_attribute);
             }
 
-            if hash_key.is_some()
-                && &hash_key.as_ref().unwrap().ty != hash_key.as_ref().unwrap().ty_non_option()
-            {
+            if hash_key.as_ref().filter(|e| e.is_option).is_some() {
                 panic!("Hash key cannot be Option type");
-            } else if sort_key.is_some()
-                && &sort_key.as_ref().unwrap().ty != sort_key.as_ref().unwrap().ty_non_option()
-            {
+            } else if sort_key.as_ref().filter(|e| e.is_option).is_some() {
                 panic!("Sort key cannot be Option type");
             }
 
@@ -251,27 +217,34 @@ impl ItemDefinition {
             other_attributes,
         }
     }
-}
 
-fn extract_attributes(attr: &Attribute) -> HashMap<String, String> {
-    let mut map = HashMap::new();
-    if let Meta::List(meta_list) = attr.meta.clone() {
-        meta_list
-            .parse_args_with(Punctuated::parse_terminated)
-            .into_iter()
-            .for_each(|nested: Punctuated<MetaNameValue, Token![,]>| {
-                for nv in nested {
-                    let param_name = nv.path.get_ident().unwrap().to_string();
-                    let param_value = match &nv.value {
-                        Expr::Lit(l) => match &l.lit {
-                            Lit::Str(s) => s.value(),
-                            _ => panic!("Expected value to be String"),
-                        },
-                        _ => panic!("Expected value to be literal"),
-                    };
-                    map.insert(param_name, param_value);
-                }
-            });
+    pub fn all_attributes(&self) -> impl Iterator<Item = &ItemAttribute> {
+        self.hash_key
+            .iter()
+            .chain(self.sort_key.iter())
+            .chain(self.other_attributes.iter())
     }
-    map
+
+    fn extract_attributes(attr: &Attribute) -> HashMap<String, String> {
+        let mut map = HashMap::new();
+        if let Meta::List(meta_list) = attr.meta.clone() {
+            meta_list
+                .parse_args_with(Punctuated::parse_terminated)
+                .into_iter()
+                .for_each(|nested: Punctuated<MetaNameValue, Token![,]>| {
+                    for nv in nested {
+                        let param_name = nv.path.get_ident().unwrap().to_string();
+                        let param_value = match &nv.value {
+                            Expr::Lit(l) => match &l.lit {
+                                Lit::Str(s) => s.value(),
+                                _ => panic!("Expected value to be String"),
+                            },
+                            _ => panic!("Expected value to be literal"),
+                        };
+                        map.insert(param_name, param_value);
+                    }
+                });
+        }
+        map
+    }
 }

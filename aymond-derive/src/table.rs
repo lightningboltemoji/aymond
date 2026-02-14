@@ -19,9 +19,9 @@ pub fn create_table(def: &ItemDefinition) -> TokenStream {
     let query_struct = format_ident!("{}Query", &name);
     let query_hash_key_struct = format_ident!("{}QueryHashKey", &name);
 
-    let get_item = create_get_builder(&def);
-    let put_item = create_put_item_builder(&def);
-    let query = create_query_builder(&def);
+    let get_item = create_get_builder(def);
+    let put_item = create_put_item_builder(def);
+    let query = create_query_builder(def);
     quote! {
         #get_item
         #put_item

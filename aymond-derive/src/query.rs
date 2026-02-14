@@ -12,22 +12,22 @@ pub fn create_query_builder(item: &ItemDefinition) -> TokenStream {
     let hash_key_struct = format_ident!("{}QueryHashKey", &item.name);
 
     let hash_key = item.hash_key.as_ref().unwrap();
-    let hash_key_attr_name = &hash_key.attr_name;
-    let hash_key_ident = &hash_key.ident;
+    let hash_key_attr_name = &hash_key.ddb_name;
+    let hash_key_ident = &hash_key.field;
     let hash_key_typ = &hash_key.ty;
-    let hash_key_boxer = hash_key.into_attribute_value(&parse_quote!(self.hk.unwrap()));
+    let hash_key_boxer = hash_key.to_attribute_value(&parse_quote!(self.hk.unwrap()));
 
     let mut chunks: Vec<TokenStream> = vec![];
 
     if item.sort_key.is_some() {
         let sort_key_struct = format_ident!("{}QuerySortKey", &item.name);
-        let sort_key_ident = &item.sort_key.as_ref().unwrap().ident;
-        let sort_key_attr_name = &item.sort_key.as_ref().unwrap().attr_name;
+        let sort_key_ident = &item.sort_key.as_ref().unwrap().field;
+        let sort_key_attr_name = &item.sort_key.as_ref().unwrap().ddb_name;
         let sort_key_typ = &item.sort_key.as_ref().unwrap().ty;
 
         let sort_key = item.sort_key.as_ref().unwrap();
-        let sort_key_b_boxer = sort_key.into_attribute_value(&parse_quote!(self.b.unwrap()));
-        let sort_key_c_boxer = sort_key.into_attribute_value(&parse_quote!(self.c.unwrap()));
+        let sort_key_b_boxer = sort_key.to_attribute_value(&parse_quote!(self.b.unwrap()));
+        let sort_key_c_boxer = sort_key.to_attribute_value(&parse_quote!(self.c.unwrap()));
 
         chunks.push(quote! {
             struct #hash_key_struct<'a> {
