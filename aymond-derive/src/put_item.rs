@@ -112,7 +112,7 @@ fn create_condition_builder(item: &ItemDefinition) -> (TokenStream, Ident) {
     let mut add_attribute_ops = |i: &ItemAttribute| {
         let attr_name = &i.attr_name;
         let attr_typ = &i.ty;
-        let (boxer, _) = i.box_unbox_for(&parse_quote!(v));
+        let boxer = i.into_attribute_value(&parse_quote!(v));
         let fn_name = format_ident!("{}_eq", &i.ident);
         attribute_ops.push(quote! {
             fn #fn_name(mut self, v: #attr_typ) -> Self {

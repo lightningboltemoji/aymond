@@ -13,16 +13,20 @@ pub fn create_get_builder(item: &ItemDefinition) -> TokenStream {
 
     let hash_key_attr_name = &item.hash_key.attr_name;
     let hash_key_ident = &item.hash_key.ident;
-    let hash_key_typ = &item.hash_key.typ_ident;
-    let hash_key_boxer = &item.hash_key.key_boxer_for(&parse_quote!(self.hk.unwrap()));
+    let hash_key_typ = &item.hash_key.ty;
+    let hash_key_boxer = &item
+        .hash_key
+        .into_attribute_value(&parse_quote!(self.hk.unwrap()));
 
     let builders = if item.sort_key.is_some() {
         let sort_key_struct = format_ident!("{}GetItemSortKey", &item.name);
         let sort_key_ident = &item.sort_key.as_ref().unwrap().ident;
         let sort_key_attr_name = &item.sort_key.as_ref().unwrap().attr_name;
-        let sort_key_typ = &item.sort_key.as_ref().unwrap().typ_ident;
+        let sort_key_typ = &item.sort_key.as_ref().unwrap().ty;
 
-        let sort_key_boxer = &item.hash_key.key_boxer_for(&parse_quote!(self.sk.unwrap()));
+        let sort_key_boxer = &item
+            .hash_key
+            .into_attribute_value(&parse_quote!(self.sk.unwrap()));
 
         quote! {
             struct #hash_key_struct<'a> {

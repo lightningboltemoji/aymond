@@ -1,6 +1,6 @@
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{DeriveInput, Expr, Ident, parse_quote};
+use syn::{DeriveInput, Expr, Ident, Type, parse_quote};
 
 use crate::{ItemAttribute, ItemDefinition};
 
@@ -22,15 +22,20 @@ pub fn create_item(input: &mut DeriveInput) -> (TokenStream, ItemDefinition) {
     let mut attr_name: Vec<String> = vec![];
     let mut attr_boxer: Vec<Expr> = vec![];
     let mut attr_unboxer: Vec<Expr> = vec![];
-    let mut attr_typ_ident: Vec<Ident> = vec![];
+    let mut attr_ty: Vec<Type> = vec![];
 
     let mut append = |i: &ItemAttribute| {
-        let (boxer, unboxer) = i.box_unbox();
+        let ident = &i.ident;
+        let boxer = i.into_attribute_value(&parse_quote!(self.#ident));
+
+        let name = i.attr_name.clone();
+        let unboxer = i.from_attribute_value(&parse_quote!(map.get(#name).unwrap()));
+
         attr_boxer.push(boxer);
         attr_unboxer.push(unboxer);
         attr_ident.push(i.ident.clone());
-        attr_name.push(i.attr_name.clone());
-        attr_typ_ident.push(i.typ_ident.clone());
+        attr_ty.push(i.ty.clone());
+        attr_name.push(name);
     };
 
     let has_sort_key = def.sort_key.is_some();

@@ -46,7 +46,7 @@ async fn main() {
     table
         .put()
         .item(it())
-        .condition(|c| c.hp_eq(516))
+        .condition(|c| c.hp_eq(518))
         .send()
         .await
         .unwrap();

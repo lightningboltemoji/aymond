@@ -1,6 +1,6 @@
 use crate::definition::ItemDefinition;
 use proc_macro2::TokenStream;
-use quote::{format_ident, quote};
+use quote::{ToTokens, format_ident, quote};
 use syn::{Expr, parse_quote};
 
 pub fn create_query_builder(item: &ItemDefinition) -> TokenStream {
@@ -13,8 +13,10 @@ pub fn create_query_builder(item: &ItemDefinition) -> TokenStream {
 
     let hash_key_attr_name = &item.hash_key.attr_name;
     let hash_key_ident = &item.hash_key.ident;
-    let hash_key_typ = &item.hash_key.typ_ident;
-    let hash_key_boxer = &item.hash_key.key_boxer_for(&parse_quote!(self.hk.unwrap()));
+    let hash_key_typ = &item.hash_key.ty;
+    let hash_key_boxer = &item
+        .hash_key
+        .into_attribute_value(&parse_quote!(self.hk.unwrap()));
 
     let mut chunks: Vec<TokenStream> = vec![];
 
@@ -22,11 +24,11 @@ pub fn create_query_builder(item: &ItemDefinition) -> TokenStream {
         let sort_key_struct = format_ident!("{}QuerySortKey", &item.name);
         let sort_key_ident = &item.sort_key.as_ref().unwrap().ident;
         let sort_key_attr_name = &item.sort_key.as_ref().unwrap().attr_name;
-        let sort_key_typ = &item.sort_key.as_ref().unwrap().typ_ident;
+        let sort_key_typ = &item.sort_key.as_ref().unwrap().ty;
 
         let sort_key = item.sort_key.as_ref().unwrap();
-        let sort_key_b_boxer = sort_key.key_boxer_for(&parse_quote!(self.b.unwrap()));
-        let sort_key_c_boxer = sort_key.key_boxer_for(&parse_quote!(self.c.unwrap()));
+        let sort_key_b_boxer = sort_key.into_attribute_value(&parse_quote!(self.b.unwrap()));
+        let sort_key_c_boxer = sort_key.into_attribute_value(&parse_quote!(self.c.unwrap()));
 
         chunks.push(quote! {
             struct #hash_key_struct<'a> {
@@ -116,7 +118,7 @@ pub fn create_query_builder(item: &ItemDefinition) -> TokenStream {
                 vec![quote! {b}, quote! {c}],
             ),
         ];
-        if hash_key_typ == "String" {
+        if hash_key_typ.to_token_stream().to_string() == "String" {
             comparisons.push((
                 format_ident!("{}_begins_with", sort_key_ident),
                 "#hk = :hk AND begins_with(#sk, :b)",

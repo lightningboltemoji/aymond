@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use quote::ToTokens;
 use syn::{
     Attribute, Data, DeriveInput, Expr, Fields, GenericArgument, Ident, Lit, Meta, MetaNameValue,
     PathArguments, Token, Type, parse_quote, punctuated::Punctuated,
@@ -9,8 +10,6 @@ pub struct ItemAttribute {
     pub ident: Ident,
     pub attr_name: String,
     pub ty: Type,
-    pub typ: String,
-    pub typ_ident: Ident,
 }
 
 pub struct ItemDefinition {
@@ -25,128 +24,100 @@ pub struct NestedItemDefinition {
 }
 
 impl ItemAttribute {
-    pub fn box_unbox_inner(ident: &Ident, typ: &mut Vec<String>) -> (Expr, Expr) {
+    pub fn into_attribute_value(&self, ident: &Expr) -> Expr {
+        let mut typ = self.type_paths();
+        Self::into_attribute_value_inner(ident, &mut typ)
+    }
+
+    fn into_attribute_value_inner(ident: &Expr, typ: &mut Vec<String>) -> Expr {
         match typ.remove(0).as_str() {
-            "i8" | "i16" | "i32" | "i64" | "i128" | "u8" | "u16" | "u32" | "u64" | "u128" => (
-                parse_quote! {
-                    ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue::N(#ident.to_string())
-                },
-                parse_quote! {
-                    #ident.parse().unwrap()
-                },
-            ),
-            "String" => (
-                parse_quote! {
-                    ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue::S(#ident)
-                },
-                parse_quote! {
-                    #ident.as_s().unwrap().to_string()
-                },
-            ),
-            "Vec" => {
-                let (rec_box, rec_unbox) = ItemAttribute::box_unbox_inner(ident, typ);
-                (
-                    parse_quote! {
-                        ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue::L(
-                            #ident.iter().map(|#ident| #rec_box).collect()
-                        )
-                    },
-                    parse_quote! {
-                        #ident.as_l().unwrap().iter().map(|#ident| #rec_unbox).collect()
-                    },
-                )
-            }
-            // We assume this is a struct if it's otherwise not recognized
-            _ => (
-                parse_quote! {
-                    ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue::M(#ident.into())
-                },
-                parse_quote! {
-                    #ident.into()
-                },
-            ),
-        }
-    }
-
-    pub fn box_unbox(&self) -> (Expr, Expr) {
-        let ident = &self.ident;
-        self.box_unbox_for(&parse_quote!(self.#ident))
-    }
-
-    pub fn box_unbox_for(&self, ident: &Expr) -> (Expr, Expr) {
-        let attr_name = &self.attr_name;
-        let mut typ: Vec<String> = vec![];
-        collect_type_idents(&self.ty, &mut typ);
-        match typ.remove(0).as_str() {
-            "i8" | "i16" | "i32" | "i64" | "i128" | "u8" | "u16" | "u32" | "u64" | "u128" => (
-                parse_quote! {
-                    ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue::N(#ident.to_string())
-                },
-                parse_quote! {
-                    map.get(#attr_name).unwrap().as_n().unwrap().parse().unwrap()
-                },
-            ),
-            "String" => (
-                parse_quote! {
-                    ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue::S(#ident)
-                },
-                parse_quote! {
-                    map.get(#attr_name).unwrap().as_s().unwrap().to_string()
-                },
-            ),
-            "Vec" => {
-                let e = parse_quote!(e);
-                let (rec_box, rec_unbox) = ItemAttribute::box_unbox_inner(&e, &mut typ);
-                (
-                    parse_quote! {
-                        ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue::L(
-                            #ident.into_iter().map(|#e| #rec_box).collect()
-                        )
-                    },
-                    parse_quote! {
-                        map.get(#attr_name).unwrap().as_l().unwrap().iter().map(|#e| #rec_unbox).collect()
-                    },
-                )
-            }
-            // We assume this is a struct if it's otherwise not recognized
-            _ => (
-                parse_quote! {
-                    ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue::M(#ident.into())
-                },
-                parse_quote! {
-                    map.get(#attr_name).unwrap().as_m().unwrap().into()
-                },
-            ),
-        }
-    }
-
-    pub fn key_boxer_for(&self, ident: &Expr) -> Expr {
-        match self.typ.as_str() {
             "i8" | "i16" | "i32" | "i64" | "i128" | "u8" | "u16" | "u32" | "u64" | "u128" => {
                 parse_quote! {
                     ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue::N(#ident.to_string())
                 }
             }
             "String" => parse_quote! {
-                ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue::S(#ident.into())
+                ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue::S(#ident.to_string())
             },
-            _ => panic!(
-                "Type cannot be used for a DynamoDB key (S, N, B only): {}",
-                self.typ.as_str()
-            ),
+            "Vec" => {
+                let rec = ItemAttribute::into_attribute_value_inner(&parse_quote!(e), typ);
+                parse_quote! {
+                    ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue::L(
+                        #ident.iter().map(|e| #rec).collect()
+                    )
+                }
+            }
+            // We assume this is a struct if it's otherwise not recognized
+            _ => parse_quote! {
+                ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue::M(#ident.into())
+            },
+        }
+    }
+
+    pub fn from_attribute_value(&self, ident: &Expr) -> Expr {
+        let mut typ = self.type_paths();
+        Self::from_attribute_value_inner(ident, &mut typ)
+    }
+
+    pub fn from_attribute_value_inner(ident: &Expr, typ: &mut Vec<String>) -> Expr {
+        match typ.remove(0).as_str() {
+            "i8" | "i16" | "i32" | "i64" | "i128" | "u8" | "u16" | "u32" | "u64" | "u128" => {
+                parse_quote! {
+                    #ident.as_n().unwrap().parse().unwrap()
+                }
+            }
+            "String" => {
+                parse_quote! {
+                    #ident.as_s().unwrap().to_string()
+                }
+            }
+            "Vec" => {
+                let rec = Self::from_attribute_value_inner(&parse_quote!(e), typ);
+                parse_quote! {
+                    #ident.as_l().unwrap().iter().map(|e| #rec).collect()
+                }
+            }
+            // We assume this is a struct if it's otherwise not recognized
+            _ => {
+                parse_quote! {
+                    #ident.as_m().unwrap().into()
+                }
+            }
         }
     }
 
     pub fn scalar_type(&self) -> Expr {
-        match self.typ.as_str() {
+        let typ = self.ty.to_token_stream().to_string();
+        match typ.as_str() {
             "i8" | "i16" | "i32" | "i64" | "i128" | "u8" | "u16" | "u32" | "u64" | "u128" => {
                 parse_quote! {::aymond::shim::aws_sdk_dynamodb::types::ScalarAttributeType::N}
             }
             "String" => {
                 parse_quote! {::aymond::shim::aws_sdk_dynamodb::types::ScalarAttributeType::S}
             }
-            _ => panic!("Unknown variable type: {}", self.typ.as_str()),
+            _ => panic!("Unknown variable type: {}", typ),
         }
+    }
+
+    pub fn type_paths(&self) -> Vec<String> {
+        fn collect(ty: &Type, idents: &mut Vec<String>) {
+            if let Type::Path(type_path) = ty {
+                for segment in &type_path.path.segments {
+                    idents.push(segment.ident.to_string());
+
+                    if let PathArguments::AngleBracketed(args) = &segment.arguments {
+                        for arg in &args.args {
+                            if let GenericArgument::Type(inner_ty) = arg {
+                                collect(inner_ty, idents);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        let mut idents = vec![];
+        collect(&self.ty, &mut idents);
+        idents
     }
 }
 
@@ -167,11 +138,6 @@ impl From<&mut DeriveInput> for ItemDefinition {
         let mut other_attributes = vec![];
 
         for field in &mut fields_named.named {
-            let path = match &field.ty {
-                Type::Path(path) => path,
-                _ => panic!("Unknown path type"),
-            };
-
             let hash = field.attrs.iter().find(|a| a.path().is_ident("hash_key"));
             let sort = field.attrs.iter().find(|a| a.path().is_ident("sort_key"));
             let attribute = field.attrs.iter().find(|a| a.path().is_ident("attribute"));
@@ -190,14 +156,10 @@ impl From<&mut DeriveInput> for ItemDefinition {
                 .unwrap_or(field_name);
 
             let ty = field.ty.clone();
-            let typ_ident = path.path.segments.first().unwrap().ident.clone();
-            let typ = path.path.segments.first().unwrap().ident.to_string();
             let item_attribute = ItemAttribute {
                 ident: field.ident.clone().unwrap(),
                 attr_name,
                 ty,
-                typ,
-                typ_ident,
             };
 
             if hash.is_some() {
@@ -224,6 +186,45 @@ impl From<&mut DeriveInput> for ItemDefinition {
     }
 }
 
+impl From<&mut DeriveInput> for NestedItemDefinition {
+    fn from(ast: &mut DeriveInput) -> Self {
+        let data_struct = match &mut ast.data {
+            Data::Struct(data_struct) => data_struct,
+            _ => panic!("Only structs are supported"),
+        };
+        let fields_named = match &mut data_struct.fields {
+            Fields::Named(fields_named) => fields_named,
+            _ => panic!("Only named fields are supported"),
+        };
+
+        let mut attributes = vec![];
+
+        for field in &mut fields_named.named {
+            let field_name = field.ident.as_ref().unwrap().to_string();
+            let attribute = field.attrs.iter().find(|a| a.path().is_ident("attribute"));
+            let attr_name = attribute
+                .map(extract_attributes)
+                .and_then(|mut a| a.remove("name"))
+                .unwrap_or(field_name);
+
+            let ty = field.ty.clone();
+            let item_attribute = ItemAttribute {
+                ident: field.ident.clone().unwrap(),
+                attr_name,
+                ty,
+            };
+
+            attributes.push(item_attribute);
+
+            field
+                .attrs
+                .retain(|attr_def| !attr_def.path().is_ident("attribute"));
+        }
+
+        NestedItemDefinition { attributes }
+    }
+}
+
 fn extract_attributes(attr: &Attribute) -> HashMap<String, String> {
     let mut map = HashMap::new();
     if let Meta::List(meta_list) = attr.meta.clone() {
@@ -245,68 +246,4 @@ fn extract_attributes(attr: &Attribute) -> HashMap<String, String> {
             });
     }
     map
-}
-
-fn collect_type_idents(ty: &Type, idents: &mut Vec<String>) {
-    if let Type::Path(type_path) = ty {
-        for segment in &type_path.path.segments {
-            idents.push(segment.ident.to_string());
-
-            if let PathArguments::AngleBracketed(args) = &segment.arguments {
-                for arg in &args.args {
-                    if let GenericArgument::Type(inner_ty) = arg {
-                        collect_type_idents(inner_ty, idents);
-                    }
-                }
-            }
-        }
-    }
-}
-
-impl From<&mut DeriveInput> for NestedItemDefinition {
-    fn from(ast: &mut DeriveInput) -> Self {
-        let data_struct = match &mut ast.data {
-            Data::Struct(data_struct) => data_struct,
-            _ => panic!("Only structs are supported"),
-        };
-        let fields_named = match &mut data_struct.fields {
-            Fields::Named(fields_named) => fields_named,
-            _ => panic!("Only named fields are supported"),
-        };
-
-        let mut attributes = vec![];
-
-        for field in &mut fields_named.named {
-            let path = match &field.ty {
-                Type::Path(path) => path,
-                _ => panic!("Unknown path type"),
-            };
-
-            let field_name = field.ident.as_ref().unwrap().to_string();
-            let attribute = field.attrs.iter().find(|a| a.path().is_ident("attribute"));
-            let attr_name = attribute
-                .map(extract_attributes)
-                .and_then(|mut a| a.remove("name"))
-                .unwrap_or(field_name);
-
-            let ty = field.ty.clone();
-            let typ_ident = path.path.segments.first().unwrap().ident.clone();
-            let typ = path.path.segments.first().unwrap().ident.to_string();
-            let item_attribute = ItemAttribute {
-                ident: field.ident.clone().unwrap(),
-                attr_name,
-                ty,
-                typ,
-                typ_ident,
-            };
-
-            attributes.push(item_attribute);
-
-            field
-                .attrs
-                .retain(|attr_def| !attr_def.path().is_ident("attribute"));
-        }
-
-        NestedItemDefinition { attributes }
-    }
 }
