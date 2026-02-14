@@ -1,9 +1,10 @@
 use std::collections::HashMap;
 
+use proc_macro2::TokenStream;
 use quote::ToTokens;
 use syn::{
     Attribute, Data, DeriveInput, Expr, Fields, GenericArgument, Ident, Lit, Meta, MetaNameValue,
-    PathArguments, Token, Type, parse_quote, punctuated::Punctuated,
+    PathArguments, Token, Type, TypePath, parse_quote, punctuated::Punctuated,
 };
 
 pub struct ItemAttribute {
@@ -24,12 +25,28 @@ pub struct NestedItemDefinition {
 }
 
 impl ItemAttribute {
-    pub fn into_attribute_value(&self, ident: &Expr) -> Expr {
+    pub fn insert_into_map(&self, ident: &TokenStream, map: &TokenStream) -> TokenStream {
+        let attr_name = &self.attr_name;
+        let boxer = self.into_attribute_value(ident);
+        if self.type_paths()[0].as_str() == "Option" {
+            parse_quote! {
+                if #ident.is_some() {
+                    #map.insert(#attr_name.to_string(), #boxer);
+                }
+            }
+        } else {
+            parse_quote! {
+                #map.insert(#attr_name.to_string(), #boxer);
+            }
+        }
+    }
+
+    pub fn into_attribute_value(&self, ident: &TokenStream) -> Expr {
         let mut typ = self.type_paths();
         Self::into_attribute_value_inner(ident, &mut typ)
     }
 
-    fn into_attribute_value_inner(ident: &Expr, typ: &mut Vec<String>) -> Expr {
+    fn into_attribute_value_inner(ident: &TokenStream, typ: &mut Vec<String>) -> Expr {
         match typ.remove(0).as_str() {
             "i8" | "i16" | "i32" | "i64" | "i128" | "u8" | "u16" | "u32" | "u64" | "u128" => {
                 parse_quote! {
@@ -47,6 +64,7 @@ impl ItemAttribute {
                     )
                 }
             }
+            "Option" => Self::into_attribute_value_inner(&parse_quote!(#ident.unwrap()), typ),
             // We assume this is a struct if it's otherwise not recognized
             _ => parse_quote! {
                 ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue::M(#ident.into())
@@ -56,27 +74,50 @@ impl ItemAttribute {
 
     pub fn from_attribute_value(&self, ident: &Expr) -> Expr {
         let mut typ = self.type_paths();
-        Self::from_attribute_value_inner(ident, &mut typ)
+        Self::from_attribute_value_inner(ident, &mut typ, false)
     }
 
-    pub fn from_attribute_value_inner(ident: &Expr, typ: &mut Vec<String>) -> Expr {
+    pub fn from_attribute_value_inner(
+        ident: &Expr,
+        typ: &mut Vec<String>,
+        as_option: bool,
+    ) -> Expr {
         match typ.remove(0).as_str() {
             "i8" | "i16" | "i32" | "i64" | "i128" | "u8" | "u16" | "u32" | "u64" | "u128" => {
-                parse_quote! {
-                    #ident.as_n().unwrap().parse().unwrap()
+                if as_option {
+                    parse_quote! {
+                        #ident.as_n().ok().map(|e| e.parse().unwrap())
+                    }
+                } else {
+                    parse_quote! {
+                        #ident.as_n().unwrap().parse().unwrap()
+                    }
                 }
             }
             "String" => {
-                parse_quote! {
-                    #ident.as_s().unwrap().to_string()
+                if as_option {
+                    parse_quote! {
+                        #ident.as_s().ok().map(|e| e.to_string())
+                    }
+                } else {
+                    parse_quote! {
+                        #ident.as_s().unwrap().to_string()
+                    }
                 }
             }
             "Vec" => {
-                let rec = Self::from_attribute_value_inner(&parse_quote!(e), typ);
-                parse_quote! {
-                    #ident.as_l().unwrap().iter().map(|e| #rec).collect()
+                let rec = Self::from_attribute_value_inner(&parse_quote!(e), typ, false);
+                if as_option {
+                    parse_quote! {
+                        #ident.as_l().ok().map(|l| l.iter().map(|e| #rec).collect())
+                    }
+                } else {
+                    parse_quote! {
+                        #ident.as_l().unwrap().iter().map(|e| #rec).collect()
+                    }
                 }
             }
+            "Option" => Self::from_attribute_value_inner(ident, typ, true),
             // We assume this is a struct if it's otherwise not recognized
             _ => {
                 parse_quote! {
@@ -97,6 +138,22 @@ impl ItemAttribute {
             }
             _ => panic!("Unknown variable type: {}", typ),
         }
+    }
+
+    pub fn ty_non_option(&self) -> &Type {
+        if let Type::Path(TypePath { path, .. }) = &self.ty {
+            let last_segment = path.segments.last();
+            if last_segment.is_none() || last_segment.unwrap().ident != "Option" {
+                return &self.ty;
+            }
+
+            if let PathArguments::AngleBracketed(args) = &last_segment.unwrap().arguments {
+                if let Some(GenericArgument::Type(inner_ty)) = args.args.first() {
+                    return inner_ty;
+                }
+            }
+        }
+        &self.ty
     }
 
     pub fn type_paths(&self) -> Vec<String> {
@@ -168,6 +225,16 @@ impl From<&mut DeriveInput> for ItemDefinition {
                 sort_key = Some(item_attribute);
             } else {
                 other_attributes.push(item_attribute);
+            }
+
+            if hash_key.is_some()
+                && &hash_key.as_ref().unwrap().ty != hash_key.as_ref().unwrap().ty_non_option()
+            {
+                panic!("Hash key cannot be Option type");
+            } else if sort_key.is_some()
+                && &sort_key.as_ref().unwrap().ty != sort_key.as_ref().unwrap().ty_non_option()
+            {
+                panic!("Sort key cannot be Option type");
             }
 
             field.attrs.retain(|attr_def| {

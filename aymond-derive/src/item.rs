@@ -20,18 +20,22 @@ pub fn create_item(input: &mut DeriveInput) -> (TokenStream, ItemDefinition) {
 
     let mut attr_ident: Vec<Ident> = vec![];
     let mut attr_name: Vec<String> = vec![];
-    let mut attr_boxer: Vec<Expr> = vec![];
+    let mut attr_insert_map: Vec<TokenStream> = vec![];
     let mut attr_unboxer: Vec<Expr> = vec![];
     let mut attr_ty: Vec<Type> = vec![];
 
     let mut append = |i: &ItemAttribute| {
         let ident = &i.ident;
-        let boxer = i.into_attribute_value(&parse_quote!(self.#ident));
-
+        let insert_map = i.insert_into_map(&parse_quote!(self.#ident), &parse_quote!(map));
         let name = i.attr_name.clone();
-        let unboxer = i.from_attribute_value(&parse_quote!(map.get(#name).unwrap()));
+        let unboxer = if &i.ty == i.ty_non_option() {
+            i.from_attribute_value(&parse_quote!(map.get(#name).unwrap()))
+        } else {
+            let exp = i.from_attribute_value(&parse_quote!(e));
+            parse_quote!(map.get(#name).and_then(|e| #exp))
+        };
 
-        attr_boxer.push(boxer);
+        attr_insert_map.push(insert_map);
         attr_unboxer.push(unboxer);
         attr_ident.push(i.ident.clone());
         attr_ty.push(i.ty.clone());
@@ -68,7 +72,7 @@ pub fn create_item(input: &mut DeriveInput) -> (TokenStream, ItemDefinition) {
             fn into(self) -> ::std::collections::HashMap<String, #aws_sdk_dynamodb::types::AttributeValue> {
                 let mut map = ::std::collections::HashMap::new();
                 #(
-                    map.insert(#attr_name.to_string(), #attr_boxer);
+                    #attr_insert_map
                 )*
                 map
             }

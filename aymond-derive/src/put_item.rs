@@ -111,8 +111,12 @@ fn create_condition_builder(item: &ItemDefinition) -> (TokenStream, Ident) {
     let mut attribute_ops: Vec<TokenStream> = vec![];
     let mut add_attribute_ops = |i: &ItemAttribute| {
         let attr_name = &i.attr_name;
-        let attr_typ = &i.ty;
-        let boxer = i.into_attribute_value(&parse_quote!(v));
+        let attr_typ = i.ty_non_option();
+        let boxer = if attr_typ != &i.ty {
+            i.into_attribute_value(&parse_quote!(Some(v)))
+        } else {
+            i.into_attribute_value(&parse_quote!(v))
+        };
         let fn_name = format_ident!("{}_eq", &i.ident);
         attribute_ops.push(quote! {
             fn #fn_name(mut self, v: #attr_typ) -> Self {
