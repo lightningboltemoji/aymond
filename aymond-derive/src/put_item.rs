@@ -129,7 +129,7 @@ fn create_condition_builder(item: &ItemDefinition) -> (TokenStream, Ident) {
             }
         });
     };
-    add_attribute_ops(&item.hash_key);
+    item.hash_key.iter().for_each(&mut add_attribute_ops);
     item.sort_key.iter().for_each(&mut add_attribute_ops);
     item.other_attributes
         .iter()

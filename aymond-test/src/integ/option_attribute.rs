@@ -12,7 +12,7 @@ async fn test() {
     }
 
     let table =
-        CellTable::new_with_local_config("numeric_keys", "http://localhost:8000", "us-west-2");
+        CellTable::new_with_local_config("option_attribute", "http://localhost:8000", "us-west-2");
     table.delete(false).await.expect("Failed to delete");
     table.create(false).await.expect("Failed to create");
 

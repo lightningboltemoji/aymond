@@ -3,7 +3,7 @@ use quote::quote;
 use syn::{DeriveInput, meta::parser, parse_macro_input};
 
 use crate::{
-    definition::{ItemAttribute, ItemDefinition, NestedItemDefinition},
+    definition::{ItemAttribute, ItemDefinition},
     item::create_item,
     nested_item::create_nested_item,
     query::create_query_builder,

@@ -11,12 +11,11 @@ pub fn create_get_builder(item: &ItemDefinition) -> TokenStream {
     let get_item_struct = format_ident!("{}GetItem", &item.name);
     let hash_key_struct = format_ident!("{}GetItemHashKey", &item.name);
 
-    let hash_key_attr_name = &item.hash_key.attr_name;
-    let hash_key_ident = &item.hash_key.ident;
-    let hash_key_typ = &item.hash_key.ty;
-    let hash_key_boxer = &item
-        .hash_key
-        .into_attribute_value(&parse_quote!(self.hk.unwrap()));
+    let hash_key = item.hash_key.as_ref().unwrap();
+    let hash_key_attr_name = &hash_key.attr_name;
+    let hash_key_ident = &hash_key.ident;
+    let hash_key_typ = &hash_key.ty;
+    let hash_key_boxer = &hash_key.into_attribute_value(&parse_quote!(self.hk.unwrap()));
 
     let builders = if item.sort_key.is_some() {
         let sort_key_struct = format_ident!("{}GetItemSortKey", &item.name);
@@ -24,9 +23,7 @@ pub fn create_get_builder(item: &ItemDefinition) -> TokenStream {
         let sort_key_attr_name = &item.sort_key.as_ref().unwrap().attr_name;
         let sort_key_typ = &item.sort_key.as_ref().unwrap().ty;
 
-        let sort_key_boxer = &item
-            .hash_key
-            .into_attribute_value(&parse_quote!(self.sk.unwrap()));
+        let sort_key_boxer = &hash_key.into_attribute_value(&parse_quote!(self.sk.unwrap()));
 
         quote! {
             struct #hash_key_struct<'a> {

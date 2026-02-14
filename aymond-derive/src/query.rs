@@ -11,12 +11,11 @@ pub fn create_query_builder(item: &ItemDefinition) -> TokenStream {
     let query_struct = format_ident!("{}Query", &item.name);
     let hash_key_struct = format_ident!("{}QueryHashKey", &item.name);
 
-    let hash_key_attr_name = &item.hash_key.attr_name;
-    let hash_key_ident = &item.hash_key.ident;
-    let hash_key_typ = &item.hash_key.ty;
-    let hash_key_boxer = &item
-        .hash_key
-        .into_attribute_value(&parse_quote!(self.hk.unwrap()));
+    let hash_key = item.hash_key.as_ref().unwrap();
+    let hash_key_attr_name = &hash_key.attr_name;
+    let hash_key_ident = &hash_key.ident;
+    let hash_key_typ = &hash_key.ty;
+    let hash_key_boxer = hash_key.into_attribute_value(&parse_quote!(self.hk.unwrap()));
 
     let mut chunks: Vec<TokenStream> = vec![];
 

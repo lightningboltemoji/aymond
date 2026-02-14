@@ -2,13 +2,13 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{DeriveInput, Expr, Ident, Type, parse_quote};
 
-use crate::{ItemAttribute, NestedItemDefinition};
+use crate::{ItemAttribute, ItemDefinition};
 
 pub fn create_nested_item(input: &mut DeriveInput) -> TokenStream {
     let aws_sdk_dynamodb: Expr = parse_quote!(::aymond::shim::aws_sdk_dynamodb);
 
-    let name = &input.ident.clone();
-    let def: NestedItemDefinition = input.into();
+    let def = ItemDefinition::new(input, true);
+    let name = &input.ident;
 
     let mut attr_ident: Vec<Ident> = vec![];
     let mut attr_name: Vec<String> = vec![];
@@ -30,7 +30,7 @@ pub fn create_nested_item(input: &mut DeriveInput) -> TokenStream {
         attr_ty.push(i.ty);
     };
 
-    def.attributes.into_iter().for_each(append);
+    def.other_attributes.into_iter().for_each(append);
 
     quote! {
         #[derive(Debug, PartialEq)]

@@ -15,13 +15,9 @@ pub struct ItemAttribute {
 
 pub struct ItemDefinition {
     pub name: String,
-    pub hash_key: ItemAttribute,
+    pub hash_key: Option<ItemAttribute>,
     pub sort_key: Option<ItemAttribute>,
     pub other_attributes: Vec<ItemAttribute>,
-}
-
-pub struct NestedItemDefinition {
-    pub attributes: Vec<ItemAttribute>,
 }
 
 impl ItemAttribute {
@@ -178,8 +174,8 @@ impl ItemAttribute {
     }
 }
 
-impl From<&mut DeriveInput> for ItemDefinition {
-    fn from(ast: &mut DeriveInput) -> Self {
+impl ItemDefinition {
+    pub fn new(ast: &mut DeriveInput, nested: bool) -> Self {
         let name = ast.ident.to_string();
         let data_struct = match &mut ast.data {
             Data::Struct(data_struct) => data_struct,
@@ -244,51 +240,16 @@ impl From<&mut DeriveInput> for ItemDefinition {
             });
         }
 
+        if !nested {
+            hash_key.as_ref().expect("#[hash_key] must be defined");
+        }
+
         ItemDefinition {
             name,
-            hash_key: hash_key.expect("#[hash_key] must be defined"),
+            hash_key,
             sort_key,
             other_attributes,
         }
-    }
-}
-
-impl From<&mut DeriveInput> for NestedItemDefinition {
-    fn from(ast: &mut DeriveInput) -> Self {
-        let data_struct = match &mut ast.data {
-            Data::Struct(data_struct) => data_struct,
-            _ => panic!("Only structs are supported"),
-        };
-        let fields_named = match &mut data_struct.fields {
-            Fields::Named(fields_named) => fields_named,
-            _ => panic!("Only named fields are supported"),
-        };
-
-        let mut attributes = vec![];
-
-        for field in &mut fields_named.named {
-            let field_name = field.ident.as_ref().unwrap().to_string();
-            let attribute = field.attrs.iter().find(|a| a.path().is_ident("attribute"));
-            let attr_name = attribute
-                .map(extract_attributes)
-                .and_then(|mut a| a.remove("name"))
-                .unwrap_or(field_name);
-
-            let ty = field.ty.clone();
-            let item_attribute = ItemAttribute {
-                ident: field.ident.clone().unwrap(),
-                attr_name,
-                ty,
-            };
-
-            attributes.push(item_attribute);
-
-            field
-                .attrs
-                .retain(|attr_def| !attr_def.path().is_ident("attribute"));
-        }
-
-        NestedItemDefinition { attributes }
     }
 }
 

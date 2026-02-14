@@ -7,12 +7,11 @@ use crate::{ItemAttribute, ItemDefinition};
 pub fn create_item(input: &mut DeriveInput) -> (TokenStream, ItemDefinition) {
     let aws_sdk_dynamodb: Expr = parse_quote!(::aymond::shim::aws_sdk_dynamodb);
 
-    // println!("{:#?}", input);
+    let def = ItemDefinition::new(input, false);
     let name = &input.ident.clone();
-    let def: ItemDefinition = input.into();
 
     let mut key_scalar_type: Vec<Expr> = vec![];
-    key_scalar_type.push(def.hash_key.scalar_type());
+    key_scalar_type.push(def.hash_key.as_ref().unwrap().scalar_type());
     def.sort_key
         .iter()
         .map(|e| e.scalar_type())
@@ -43,7 +42,7 @@ pub fn create_item(input: &mut DeriveInput) -> (TokenStream, ItemDefinition) {
     };
 
     let has_sort_key = def.sort_key.is_some();
-    append(&def.hash_key);
+    def.hash_key.iter().for_each(&mut append);
     def.sort_key.iter().for_each(&mut append);
     def.other_attributes.iter().for_each(&mut append);
 
