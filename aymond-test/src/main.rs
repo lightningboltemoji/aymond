@@ -1,55 +1,51 @@
-use aymond::prelude::*;
+use aymond::{HighLevelClient, prelude::*};
 
 mod integ;
 
 #[aymond(item, table)]
-struct Car {
+struct Cell {
     #[hash_key]
-    make: String,
+    row: i32,
     #[sort_key]
-    model: String,
-    hp: i16,
-    variants: Vec<String>,
-    production: Production,
-}
-
-#[aymond(nested_item)]
-struct Production {
-    began: i32,
-    #[attribute(name = "units_produced")]
-    units: i64,
+    col: i32,
+    label: Option<String>,
 }
 
 #[tokio::main]
 async fn main() {
-    let table = CarTable::new_with_local_config("test", "http://localhost:8000", "us-west-2");
+    let client = HighLevelClient::new_with_local_config("http://localhost:8000", "us-west-2");
+    let table = CellTable::new(&client, "numeric_keys");
     table.delete(false).await.expect("Failed to delete");
     table.create(false).await.expect("Failed to create");
 
-    let it = || Car {
-        make: "Porsche".to_string(),
-        model: "911".to_string(),
-        hp: 518,
-        variants: vec![
-            "Carrera".into(),
-            "Carrera S".into(),
-            "Carrera 4S".into(),
-            "GT3 RS".into(),
-        ],
-        production: Production {
-            began: 1964,
-            units: 1_100_000,
-        },
+    let it_factory = || Cell {
+        row: 10,
+        col: 14,
+        label: None,
     };
-    table.put().item(it()).send().await.unwrap();
+    let it = it_factory();
+    table.put().item(it).send().await.expect("Failed to write");
 
-    table
-        .put()
-        .item(it())
-        .condition(|c| c.hp_eq(518))
-        .send()
-        .await
-        .unwrap();
+    let get = table.get().row(10).col(14).send().await.unwrap();
+    assert_eq!(get.unwrap(), it_factory());
 
-    let _ = table.get().make("Porsche").model("911").send().await;
+    let it_factory = || Cell {
+        row: 10,
+        col: 14,
+        label: Some("Red".to_string()),
+    };
+    let it = it_factory();
+    table.put().item(it).send().await.expect("Failed to write");
+
+    let get = table.get().row(10).col(14).send().await.unwrap();
+    assert_eq!(get.unwrap(), it_factory());
+
+    let it_factory = |col: i32| Cell {
+        row: 10,
+        col,
+        label: Some("Red".to_string()),
+    };
+    let put1 = table.put().item(it_factory(15));
+    let put2 = table.put().item(it_factory(16));
+    client.tx().put(put1).put(put2).send().await.unwrap();
 }

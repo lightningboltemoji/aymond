@@ -1,6 +1,6 @@
 [package]
 name = "aymond-derive"
-version = "0.2.0"
+version = "0.10.0"
 authors = ["Tanner <t@nner.xyz>"]
 description = "A batteries-included client wrapper for DynamoDB"
 readme = "../README.md"

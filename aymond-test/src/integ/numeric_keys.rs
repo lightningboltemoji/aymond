@@ -1,6 +1,6 @@
 #[tokio::test]
 async fn test() {
-    use aymond::{prelude::*, shim::futures::StreamExt};
+    use aymond::{HighLevelClient, prelude::*, shim::futures::StreamExt};
 
     #[aymond(item, table)]
     struct Cell {
@@ -10,8 +10,8 @@ async fn test() {
         col: i32,
     }
 
-    let table =
-        CellTable::new_with_local_config("numeric_keys", "http://localhost:8000", "us-west-2");
+    let client = HighLevelClient::new_with_local_config("http://localhost:8000", "us-west-2");
+    let table = CellTable::new(&client, "numeric_keys");
     table.delete(false).await.expect("Failed to delete");
     table.create(false).await.expect("Failed to create");
 

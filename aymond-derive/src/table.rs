@@ -8,7 +8,6 @@ use crate::{
 };
 
 pub fn create_table(def: &ItemDefinition) -> TokenStream {
-    let aws_types: Expr = parse_quote!(::aymond::shim::aws_types);
     let aws_sdk_dynamodb: Expr = parse_quote!(::aymond::shim::aws_sdk_dynamodb);
 
     let name = format_ident!("{}", &def.name);
@@ -35,49 +34,13 @@ pub fn create_table(def: &ItemDefinition) -> TokenStream {
 
         impl<'a> Table<'a, #name, #get_item_struct<'a>, #get_item_hash_key_struct<'a>, #put_item_struct<'a>, #query_struct<'a>, #query_hash_key_struct<'a>> for #table_struct {
 
-            fn new_with_local_config(
-                table_name: impl Into<String>,
-                endpoint_url: impl Into<String>,
-                region_name: impl Into<String>,
-            ) -> Self {
-                let credentials = ::aymond::shim::aws_credential_types::Credentials::from_keys("empty", "empty", None);
-                let table_name = table_name.into();
-                let endpoint_url = endpoint_url.into();
-                let region_name = region_name.into();
-                Self::new_with_config_builder(table_name, move |b| {
-                    b.credentials_provider(#aws_types::sdk_config::SharedCredentialsProvider::new(credentials))
-                        .region(#aws_types::region::Region::new(region_name))
-                        .endpoint_url(endpoint_url)
-                        .behavior_version(#aws_sdk_dynamodb::config::BehaviorVersion::latest())
-                })
-            }
-
-            fn new_with_config_builder<F>(table_name: impl ::core::convert::Into<String>, builder: F) -> Self
-            where
-                F: FnOnce(#aws_types::sdk_config::Builder) -> #aws_types::sdk_config::Builder {
-                    let config = builder(#aws_types::SdkConfig::builder()).build();
-                    Self::new_with_config(table_name, config)
-                }
-
-            async fn new_with_default_config(table_name: impl ::core::convert::Into<String>) -> Self {
-                let config = ::aymond::shim::aws_config::load_defaults(
-                    ::aymond::shim::aws_config::BehaviorVersion::latest()
-                ).await;
-                Self::new_with_config(table_name, config)
-            }
-
-            fn new_with_config(table_name: impl ::core::convert::Into<String>, config: #aws_types::SdkConfig) -> Self {
-                let client = ::std::sync::Arc::new(#aws_sdk_dynamodb::Client::new(&config));
-                Self::new_with_client(table_name, client)
-            }
-
-            fn new_with_client(
+            fn new(
+                client: &'a ::aymond::HighLevelClient,
                 table_name: impl ::core::convert::Into<String>,
-                client: ::std::sync::Arc<#aws_sdk_dynamodb::Client>,
             ) -> Self {
                 Self {
-                    client,
-                    table_name: table_name.into()
+                    table_name: table_name.into(),
+                    client: client.client.clone(),
                 }
             }
 

@@ -83,6 +83,20 @@ pub fn create_put_item_builder(item: &ItemDefinition) -> TokenStream {
                 Ok(())
             }
         }
+
+        impl<'a> Into<#aws_sdk_dynamodb::types::Put> for #put_item_struct<'a> {
+            fn into(self) -> #aws_sdk_dynamodb::types::Put {
+                let mut b = #aws_sdk_dynamodb::types::Put::builder()
+                    .table_name(&self.table.table_name)
+                    .set_item(Some(self.i.expect("item not set").into()));
+                if self.cond_expr.is_some() {
+                    b = b.set_condition_expression(self.cond_expr)
+                        .set_expression_attribute_names(self.expr_name)
+                        .set_expression_attribute_values(self.expr_value);
+                }
+                b.build().unwrap()
+            }
+        }
     }
 }
 

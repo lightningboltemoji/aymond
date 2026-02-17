@@ -404,7 +404,7 @@ dependencies = [
 
 [[package]]
 name = "aymond"
-version = "0.2.0"
+version = "0.10.0"
 dependencies = [
  "aws-config",
  "aws-credential-types",
@@ -416,7 +416,7 @@ dependencies = [
 
 [[package]]
 name = "aymond-derive"
-version = "0.2.0"
+version = "0.10.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -425,7 +425,7 @@ dependencies = [
 
 [[package]]
 name = "aymond-test"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "aymond",
  "aymond-derive",
