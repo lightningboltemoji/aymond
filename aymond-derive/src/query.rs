@@ -1,6 +1,6 @@
 use crate::definition::ItemDefinition;
 use proc_macro2::TokenStream;
-use quote::{ToTokens, format_ident, quote};
+use quote::{format_ident, quote};
 use syn::{Expr, parse_quote};
 
 pub fn create_query_builder(item: &ItemDefinition) -> TokenStream {

@@ -146,6 +146,45 @@ fn create_condition_builder(item: &ItemDefinition) -> (TokenStream, Ident) {
         })
         .collect();
 
+    let contains_ops: Vec<TokenStream> = item
+        .all_attributes()
+        .filter_map(|i: &ItemAttribute| {
+            let h = &i.generics_hierarchy;
+            let attr_name = &i.ddb_name;
+            let fn_name = format_ident!("{}_contains", &i.field);
+
+            let inner: &[_] = match h.as_slice() {
+                [o, rest @ ..] if o == "Option" => rest,
+                all => all,
+            };
+            match inner {
+                [h, s, ..] if h == "HashSet" && s == "String" => Some(quote! {
+                    fn #fn_name(mut self, v: String) -> Self {
+                        let id = self.cur;
+                        self.cur = (id as u8 + 1) as char;
+                        self.fragments.push(format!("contains(#{0}, :{0})", id));
+                        self.expr_name.insert(format!("#{}", id), #attr_name.to_string());
+                        self.expr_value.insert(format!(":{}", id), #aws_sdk_dynamodb::types::AttributeValue::S(v));
+                        self
+                    }
+                }),
+                [h, v, u, ..] if h == "HashSet" && v == "Vec" && u == "u8" => Some(quote! {
+                    fn #fn_name(mut self, v: Vec<u8>) -> Self {
+                        let id = self.cur;
+                        self.cur = (id as u8 + 1) as char;
+                        self.fragments.push(format!("contains(#{0}, :{0})", id));
+                        self.expr_name.insert(format!("#{}", id), #attr_name.to_string());
+                        self.expr_value.insert(format!(":{}", id), #aws_sdk_dynamodb::types::AttributeValue::B(
+                            ::aymond::shim::aws_sdk_dynamodb::primitives::Blob::new(v)
+                        ));
+                        self
+                    }
+                }),
+                _ => None,
+            }
+        })
+        .collect();
+
     let imp = quote! {
         struct #ident {
             fragments: Vec<String>,
@@ -166,6 +205,7 @@ fn create_condition_builder(item: &ItemDefinition) -> (TokenStream, Ident) {
 
             #( #statics )*
             #( #attribute_ops )*
+            #( #contains_ops )*
         }
 
         impl Into<(

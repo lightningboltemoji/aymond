@@ -84,6 +84,14 @@ impl ItemAttribute {
                 parse_quote! (#attr_val::N(#ident.to_string()))
             }
             [t, ..] if t == "String" => parse_quote!(#attr_val::S(#ident.to_string())),
+            [h, s, ..] if h == "HashSet" && s == "String" => {
+                parse_quote!(#attr_val::Ss(#ident.iter().cloned().collect()))
+            }
+            [h, v, u, ..] if h == "HashSet" && v == "Vec" && u == "u8" => {
+                let blob: TokenStream =
+                    parse_quote!(::aymond::shim::aws_sdk_dynamodb::primitives::Blob);
+                parse_quote!(#attr_val::Bs(#ident.iter().map(|e| #blob::new(e.clone())).collect()))
+            }
             [v, u, ..] if v == "Vec" && u == "u8" => {
                 let blob: TokenStream =
                     parse_quote!(::aymond::shim::aws_sdk_dynamodb::primitives::Blob);
@@ -110,6 +118,12 @@ impl ItemAttribute {
                     (parse_quote!(.as_n()), parse_quote!(.parse().unwrap()))
                 }
                 [t, ..] if t == "String" => (parse_quote!(.as_s()), parse_quote!(.to_string())),
+                [h, s, ..] if h == "HashSet" && s == "String" => {
+                    (parse_quote!(.as_ss()), parse_quote!(.iter().cloned().collect()))
+                }
+                [h, v, u, ..] if h == "HashSet" && v == "Vec" && u == "u8" => {
+                    (parse_quote!(.as_bs()), parse_quote!(.iter().map(|b| b.clone().into_inner()).collect()))
+                }
                 [v, u, ..] if v == "Vec" && u == "u8" => (parse_quote!(.as_b()), parse_quote!(.clone().into_inner())),
                 [v, ..] if v == "Vec" => {
                     let rec = self.from_attribute_value_inner(&parse_quote!(e), hier + 1);

@@ -108,10 +108,10 @@ impl<'a> Tx<'a> {
     }
 }
 
-impl<'a> Into<Option<Vec<TransactWriteItem>>> for Tx<'a> {
-    fn into(self) -> Option<Vec<TransactWriteItem>> {
+impl<'a> From<Tx<'a>> for Option<Vec<TransactWriteItem>> {
+    fn from(val: Tx<'a>) -> Self {
         let mut vec = vec![];
-        for p in self.put {
+        for p in val.put {
             vec.push(TransactWriteItem::builder().put(p).build());
         }
         Some(vec)
