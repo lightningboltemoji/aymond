@@ -117,7 +117,13 @@ pub fn create_query_builder(item: &ItemDefinition) -> TokenStream {
                 vec![quote! {b}, quote! {c}],
             ),
         ];
-        if hash_key_typ.to_token_stream().to_string() == "String" {
+        let sk_hier = &item.sort_key.as_ref().unwrap().generics_hierarchy;
+        let sk_supports_begins_with = match sk_hier.as_slice() {
+            [t] => t == "String",
+            [v, u] => v == "Vec" && u == "u8",
+            _ => false,
+        };
+        if sk_supports_begins_with {
             comparisons.push((
                 format_ident!("{}_begins_with", sort_key_ident),
                 "#hk = :hk AND begins_with(#sk, :b)",

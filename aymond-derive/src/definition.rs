@@ -79,16 +79,21 @@ impl ItemAttribute {
     fn to_attribute_value_inner(&self, ident: &TokenStream, hier: usize) -> Expr {
         let attr_val: TokenStream =
             parse_quote!(::aymond::shim::aws_sdk_dynamodb::types::AttributeValue);
-        match self.generics_hierarchy[hier].as_str() {
-            "i8" | "i16" | "i32" | "i64" | "i128" | "u8" | "u16" | "u32" | "u64" | "u128" => {
+        match &self.generics_hierarchy[hier..] {
+            [t, ..] if matches!(t.as_str(), "i8"|"i16"|"i32"|"i64"|"i128"|"u8"|"u16"|"u32"|"u64"|"u128") => {
                 parse_quote! (#attr_val::N(#ident.to_string()))
             }
-            "String" => parse_quote!(#attr_val::S(#ident.to_string())),
-            "Vec" => {
+            [t, ..] if t == "String" => parse_quote!(#attr_val::S(#ident.to_string())),
+            [v, u, ..] if v == "Vec" && u == "u8" => {
+                let blob: TokenStream =
+                    parse_quote!(::aymond::shim::aws_sdk_dynamodb::primitives::Blob);
+                parse_quote!(#attr_val::B(#blob::new(#ident)))
+            }
+            [v, ..] if v == "Vec" => {
                 let rec = self.to_attribute_value_inner(&parse_quote!(e), hier + 1);
                 parse_quote!(#attr_val::L(#ident.iter().map(|e| #rec).collect()))
             }
-            "Option" => self.to_attribute_value_inner(&parse_quote!(#ident.unwrap()), hier + 1),
+            [t, ..] if t == "Option" => self.to_attribute_value_inner(&parse_quote!(#ident.unwrap()), hier + 1),
             // We assume this is a struct if it's otherwise not recognized
             _ => parse_quote!(#attr_val::M(#ident.into())),
         }
@@ -100,12 +105,13 @@ impl ItemAttribute {
 
     fn from_attribute_value_inner(&self, ident: &Expr, hier: usize) -> Expr {
         let (as_, get_value): (TokenStream, TokenStream) =
-            match self.generics_hierarchy[hier].as_str() {
-                "i8" | "i16" | "i32" | "i64" | "i128" | "u8" | "u16" | "u32" | "u64" | "u128" => {
+            match &self.generics_hierarchy[hier..] {
+                [t, ..] if matches!(t.as_str(), "i8"|"i16"|"i32"|"i64"|"i128"|"u8"|"u16"|"u32"|"u64"|"u128") => {
                     (parse_quote!(.as_n()), parse_quote!(.parse().unwrap()))
                 }
-                "String" => (parse_quote!(.as_s()), parse_quote!(.to_string())),
-                "Vec" => {
+                [t, ..] if t == "String" => (parse_quote!(.as_s()), parse_quote!(.to_string())),
+                [v, u, ..] if v == "Vec" && u == "u8" => (parse_quote!(.as_b()), parse_quote!(.clone().into_inner())),
+                [v, ..] if v == "Vec" => {
                     let rec = self.from_attribute_value_inner(&parse_quote!(e), hier + 1);
                     (
                         parse_quote!(.as_l()),
@@ -124,15 +130,17 @@ impl ItemAttribute {
     }
 
     pub fn scalar_type(&self) -> Expr {
-        let typ = self.ty.to_token_stream().to_string();
-        match typ.as_str() {
-            "i8" | "i16" | "i32" | "i64" | "i128" | "u8" | "u16" | "u32" | "u64" | "u128" => {
+        match self.generics_hierarchy.as_slice() {
+            [t] if matches!(t.as_str(), "i8"|"i16"|"i32"|"i64"|"i128"|"u8"|"u16"|"u32"|"u64"|"u128") => {
                 parse_quote! {::aymond::shim::aws_sdk_dynamodb::types::ScalarAttributeType::N}
             }
-            "String" => {
+            [t] if t == "String" => {
                 parse_quote! {::aymond::shim::aws_sdk_dynamodb::types::ScalarAttributeType::S}
             }
-            _ => panic!("Unknown variable type: {}", typ),
+            [v, u] if v == "Vec" && u == "u8" => {
+                parse_quote! {::aymond::shim::aws_sdk_dynamodb::types::ScalarAttributeType::B}
+            }
+            _ => panic!("Unknown variable type: {}", self.ty.to_token_stream()),
         }
     }
 

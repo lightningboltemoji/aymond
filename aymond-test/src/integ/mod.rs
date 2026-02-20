@@ -1,4 +1,5 @@
 mod basic;
+mod binary_keys;
 mod no_sort_key;
 mod no_table;
 mod numeric_keys;
