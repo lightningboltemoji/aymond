@@ -124,25 +124,43 @@ fn create_condition_builder(item: &ItemDefinition) -> (TokenStream, Ident) {
 
     let attribute_ops: Vec<TokenStream> = item
         .all_attributes()
-        .map(|i: &ItemAttribute| {
-            let attr_name = &i.ddb_name;
-            let attr_typ = &i.ty_value;
+        .flat_map(|i: &ItemAttribute| {
+            let attr_name = i.ddb_name.clone();
+            let attr_typ = i.ty_value.clone();
             let boxer = if i.is_option {
                 i.to_attribute_value(&parse_quote!(Some(v)))
             } else {
                 i.to_attribute_value(&parse_quote!(v))
             };
-            let fn_name = format_ident!("{}_eq", &i.field);
-            quote! {
-                fn #fn_name(mut self, v: #attr_typ) -> Self {
-                    let id = self.cur;
-                    self.cur = (id as u8 + 1) as char;
-                    self.fragments.push(format!("#{0} = :{0}", id));
-                    self.expr_name.insert(format!("#{}", id), #attr_name.to_string());
-                    self.expr_value.insert(format!(":{}", id), #boxer);
-                    self
+            let field = i.field.clone();
+
+            [
+                ("eq", "="),
+                ("ne", "<>"),
+                ("lt", "<"),
+                ("gt", ">"),
+                ("le", "<="),
+                ("ge", ">="),
+            ]
+            .into_iter()
+            .map(move |(suffix, op)| {
+                let fn_name = format_ident!("{}_{}", field, suffix);
+                let expr_fmt = format!("#{{0}} {} :{{0}}", op);
+                let boxer = boxer.clone();
+                let attr_name = attr_name.clone();
+                let attr_typ = attr_typ.clone();
+                quote! {
+                    fn #fn_name(mut self, v: #attr_typ) -> Self {
+                        let id = self.cur;
+                        self.cur = (id as u8 + 1) as char;
+                        self.fragments.push(format!(#expr_fmt, id));
+                        self.expr_name.insert(format!("#{}", id), #attr_name.to_string());
+                        self.expr_value.insert(format!(":{}", id), #boxer);
+                        self
+                    }
                 }
-            }
+            })
+            .collect::<Vec<_>>()
         })
         .collect();
 
