@@ -4,9 +4,9 @@ async fn test() {
 
     #[aymond(item, table)]
     struct Chunk {
-        #[hash_key]
+        #[aymond(hash_key)]
         key: Vec<u8>,
-        #[sort_key]
+        #[aymond(sort_key)]
         range: Vec<u8>,
     }
 

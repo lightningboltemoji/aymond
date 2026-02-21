@@ -4,4 +4,4 @@ error: custom attribute panicked
 3 | #[aymond(item)]
   | ^^^^^^^^^^^^^^^
   |
-  = help: message: #[hash_key] must be defined
+  = help: message: #[aymond(hash_key)] must be defined

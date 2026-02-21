@@ -4,9 +4,9 @@ async fn test() {
 
     #[aymond(item, table)]
     struct Car {
-        #[hash_key]
+        #[aymond(hash_key)]
         make: String,
-        #[sort_key]
+        #[aymond(sort_key)]
         model: String,
         hp: i16,
         variants: Vec<String>,
@@ -16,7 +16,7 @@ async fn test() {
     #[aymond(nested_item)]
     struct Production {
         began: i32,
-        #[attribute(name = "units_produced")]
+        #[aymond(attribute(name = "units_produced"))]
         units: i64,
     }
 

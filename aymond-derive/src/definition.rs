@@ -1,9 +1,7 @@
-use std::collections::HashMap;
-
 use proc_macro2::TokenStream;
 use quote::{ToTokens, format_ident};
 use syn::{
-    Attribute, Data, DeriveInput, Expr, Fields, GenericArgument, Ident, Lit, Meta, MetaNameValue,
+    Data, DeriveInput, Expr, Fields, GenericArgument, Ident, Lit, Meta, MetaList, MetaNameValue,
     PathArguments, Token, Type, TypePath, parse_quote, punctuated::Punctuated,
 };
 
@@ -230,29 +228,43 @@ impl ItemDefinition {
         let mut other_attributes = vec![];
 
         for field in &mut fields_named.named {
-            let hash = field.attrs.iter().find(|a| a.path().is_ident("hash_key"));
-            let sort = field.attrs.iter().find(|a| a.path().is_ident("sort_key"));
-            let attribute = field.attrs.iter().find(|a| a.path().is_ident("attribute"));
+            let aymond_field_attr = field.attrs.iter().find(|a| a.path().is_ident("aymond"));
+            let (is_hash, is_sort, custom_name) = match aymond_field_attr {
+                None => (false, false, None),
+                Some(attr) => {
+                    let inner: Meta = attr.parse_args().expect("Invalid #[aymond(...)] field annotation");
+                    match &inner {
+                        Meta::Path(p) if p.is_ident("hash_key") => (true, false, None),
+                        Meta::Path(p) if p.is_ident("sort_key") => (false, true, None),
+                        Meta::List(list) if list.path.is_ident("hash_key") => {
+                            (true, false, Self::extract_attribute_name(list))
+                        }
+                        Meta::List(list) if list.path.is_ident("sort_key") => {
+                            (false, true, Self::extract_attribute_name(list))
+                        }
+                        Meta::List(list) if list.path.is_ident("attribute") => {
+                            (false, false, Self::extract_attribute_name(list))
+                        }
+                        _ => panic!("Unknown #[aymond(...)] field annotation. Expected hash_key, sort_key, or attribute(...)"),
+                    }
+                }
+            };
 
-            if hash.is_some() && hash_key.is_some() {
-                panic!("Multiple attributes with #[hash_key]");
-            } else if sort.is_some() && sort_key.is_some() {
-                panic!("Multiple attributes with #[sort_key]");
+            if is_hash && hash_key.is_some() {
+                panic!("Multiple attributes with #[aymond(hash_key)]");
+            } else if is_sort && sort_key.is_some() {
+                panic!("Multiple attributes with #[aymond(sort_key)]");
             }
 
             let field_name = field.ident.as_ref().unwrap().to_string();
-            let source = hash.or(sort).or(attribute);
-            let attr_name = source
-                .map(Self::extract_attributes)
-                .and_then(|mut a| a.remove("name"))
-                .unwrap_or(field_name);
+            let attr_name = custom_name.unwrap_or(field_name);
 
             let ty = field.ty.clone();
             let item_attribute = ItemAttribute::new(field.ident.clone().unwrap(), attr_name, ty);
 
-            if hash.is_some() {
+            if is_hash {
                 hash_key = Some(item_attribute);
-            } else if sort.is_some() {
+            } else if is_sort {
                 sort_key = Some(item_attribute);
             } else {
                 other_attributes.push(item_attribute);
@@ -264,15 +276,11 @@ impl ItemDefinition {
                 panic!("Sort key cannot be Option type");
             }
 
-            field.attrs.retain(|attr_def| {
-                !attr_def.path().is_ident("hash_key")
-                    && !attr_def.path().is_ident("sort_key")
-                    && !attr_def.path().is_ident("attribute")
-            });
+            field.attrs.retain(|attr_def| !attr_def.path().is_ident("aymond"));
         }
 
         if !nested {
-            hash_key.as_ref().expect("#[hash_key] must be defined");
+            hash_key.as_ref().expect("#[aymond(hash_key)] must be defined");
         }
 
         ItemDefinition {
@@ -290,26 +298,17 @@ impl ItemDefinition {
             .chain(self.other_attributes.iter())
     }
 
-    fn extract_attributes(attr: &Attribute) -> HashMap<String, String> {
-        let mut map = HashMap::new();
-        if let Meta::List(meta_list) = attr.meta.clone() {
-            meta_list
-                .parse_args_with(Punctuated::parse_terminated)
-                .into_iter()
-                .for_each(|nested: Punctuated<MetaNameValue, Token![,]>| {
-                    for nv in nested {
-                        let param_name = nv.path.get_ident().unwrap().to_string();
-                        let param_value = match &nv.value {
-                            Expr::Lit(l) => match &l.lit {
-                                Lit::Str(s) => s.value(),
-                                _ => panic!("Expected value to be String"),
-                            },
-                            _ => panic!("Expected value to be literal"),
-                        };
-                        map.insert(param_name, param_value);
-                    }
-                });
-        }
-        map
+    fn extract_attribute_name(list: &MetaList) -> Option<String> {
+        list.parse_args_with(Punctuated::<MetaNameValue, Token![,]>::parse_terminated)
+            .ok()?
+            .into_iter()
+            .find_map(|nv| {
+                if nv.path.is_ident("name")
+                    && let Expr::Lit(expr_lit) = &nv.value
+                        && let Lit::Str(s) = &expr_lit.lit {
+                            return Some(s.value());
+                        }
+                None
+            })
     }
 }

@@ -5,7 +5,7 @@ async fn test() {
 
     #[aymond(item)]
     struct Car {
-        #[hash_key]
+        #[aymond(hash_key)]
         make: String,
         hp: i16,
     }

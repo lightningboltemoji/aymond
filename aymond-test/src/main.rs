@@ -4,9 +4,9 @@ mod integ;
 
 #[aymond(item, table)]
 struct Cell {
-    #[hash_key]
+    #[aymond(hash_key)]
     row: i32,
-    #[sort_key]
+    #[aymond(sort_key)]
     col: i32,
     label: Option<String>,
 }

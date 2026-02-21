@@ -5,7 +5,7 @@ async fn test() {
 
     #[aymond(item, table)]
     struct Tag {
-        #[hash_key]
+        #[aymond(hash_key)]
         pk: String,
         labels: HashSet<String>,
         blobs: HashSet<Vec<u8>>,

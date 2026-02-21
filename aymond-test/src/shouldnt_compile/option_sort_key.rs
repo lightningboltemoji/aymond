@@ -2,9 +2,9 @@ use aymond::prelude::*;
 
 #[aymond(item)]
 struct Car {
-    #[hash_key]
+    #[aymond(hash_key)]
     make: String,
-    #[sort_key]
+    #[aymond(sort_key)]
     model: Option<String>,
 }
 
