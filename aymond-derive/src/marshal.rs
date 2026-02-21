@@ -20,9 +20,9 @@ pub fn from_into_item_structure(item: &ItemDefinition) -> TokenStream {
 
         let name = i.ddb_name.clone();
         let unboxer = if !i.is_option {
-            i.from_attribute_value(&parse_quote!(map.get(#name).unwrap()))
+            i.unwrap_attribute_value(&parse_quote!(map.get(#name).unwrap()))
         } else {
-            let exp = i.from_attribute_value(&parse_quote!(e));
+            let exp = i.unwrap_attribute_value(&parse_quote!(e));
             parse_quote!(map.get(#name).and_then(|e| #exp))
         };
 

@@ -46,13 +46,20 @@ impl CondExpr {
         CondExpr::Or(Box::new(self), Box::new(other))
     }
 
+    #[allow(clippy::should_implement_trait)]
     pub fn not(self) -> CondExpr {
         CondExpr::Not(Box::new(self))
     }
 
     /// Renders the expression tree into a condition expression string,
     /// expression attribute names, and expression attribute values.
-    pub fn build(self) -> (String, HashMap<String, String>, HashMap<String, AttributeValue>) {
+    pub fn build(
+        self,
+    ) -> (
+        String,
+        HashMap<String, String>,
+        HashMap<String, AttributeValue>,
+    ) {
         let mut names = HashMap::new();
         let mut values = HashMap::new();
         let mut counter: usize = 0;
@@ -135,7 +142,10 @@ impl CondExpr {
                 let high_placeholder = format!(":v{}", *counter);
                 *counter += 1;
                 values.insert(high_placeholder.clone(), high.clone());
-                format!("{} BETWEEN {} AND {}", path_str, low_placeholder, high_placeholder)
+                format!(
+                    "{} BETWEEN {} AND {}",
+                    path_str, low_placeholder, high_placeholder
+                )
             }
         }
     }

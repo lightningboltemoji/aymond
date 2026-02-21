@@ -2,14 +2,13 @@ use proc_macro2::TokenStream;
 use quote::{ToTokens, format_ident};
 use syn::{
     Data, DeriveInput, Expr, Fields, GenericArgument, Ident, Lit, Meta, MetaList, MetaNameValue,
-    PathArguments, Token, Type, TypePath, parse_quote, punctuated::Punctuated,
+    PathArguments, Token, Type, parse_quote, punctuated::Punctuated,
 };
 
 pub struct ItemAttribute {
     pub field: Ident,
     pub ddb_name: String,
     pub ty: Type,
-    pub ty_value: Type,
     pub is_option: bool,
     pub generics_hierarchy: Vec<String>,
 }
@@ -25,12 +24,10 @@ impl ItemAttribute {
     pub fn new(field: Ident, ddb_name: String, ty: Type) -> Self {
         let generics_hierarchy = Self::generics_hierarchy(&ty);
         let is_option = generics_hierarchy[0] == "Option";
-        let ty_value = Self::ty_value(&ty, is_option);
         ItemAttribute {
             field,
             ddb_name,
             ty,
-            ty_value,
             is_option,
             generics_hierarchy,
         }
@@ -78,7 +75,12 @@ impl ItemAttribute {
         let attr_val: TokenStream =
             parse_quote!(::aymond::shim::aws_sdk_dynamodb::types::AttributeValue);
         match &self.generics_hierarchy[hier..] {
-            [t, ..] if matches!(t.as_str(), "i8"|"i16"|"i32"|"i64"|"i128"|"u8"|"u16"|"u32"|"u64"|"u128") => {
+            [t, ..]
+                if matches!(
+                    t.as_str(),
+                    "i8" | "i16" | "i32" | "i64" | "i128" | "u8" | "u16" | "u32" | "u64" | "u128"
+                ) =>
+            {
                 parse_quote! (#attr_val::N(#ident.to_string()))
             }
             [t, ..] if t == "String" => parse_quote!(#attr_val::S(#ident.to_string())),
@@ -99,40 +101,50 @@ impl ItemAttribute {
                 let rec = self.to_attribute_value_inner(&parse_quote!(e), hier + 1);
                 parse_quote!(#attr_val::L(#ident.iter().map(|e| #rec).collect()))
             }
-            [t, ..] if t == "Option" => self.to_attribute_value_inner(&parse_quote!(#ident.unwrap()), hier + 1),
+            [t, ..] if t == "Option" => {
+                self.to_attribute_value_inner(&parse_quote!(#ident.unwrap()), hier + 1)
+            }
             // We assume this is a struct if it's otherwise not recognized
             _ => parse_quote!(#attr_val::M(#ident.into())),
         }
     }
 
-    pub fn from_attribute_value(&self, ident: &Expr) -> Expr {
-        self.from_attribute_value_inner(ident, if self.is_option { 1 } else { 0 })
+    pub fn unwrap_attribute_value(&self, ident: &Expr) -> Expr {
+        self.unwrap_attribute_value_inner(ident, if self.is_option { 1 } else { 0 })
     }
 
-    fn from_attribute_value_inner(&self, ident: &Expr, hier: usize) -> Expr {
-        let (as_, get_value): (TokenStream, TokenStream) =
-            match &self.generics_hierarchy[hier..] {
-                [t, ..] if matches!(t.as_str(), "i8"|"i16"|"i32"|"i64"|"i128"|"u8"|"u16"|"u32"|"u64"|"u128") => {
-                    (parse_quote!(.as_n()), parse_quote!(.parse().unwrap()))
-                }
-                [t, ..] if t == "String" => (parse_quote!(.as_s()), parse_quote!(.to_string())),
-                [h, s, ..] if h == "HashSet" && s == "String" => {
-                    (parse_quote!(.as_ss()), parse_quote!(.iter().cloned().collect()))
-                }
-                [h, v, u, ..] if h == "HashSet" && v == "Vec" && u == "u8" => {
-                    (parse_quote!(.as_bs()), parse_quote!(.iter().map(|b| b.clone().into_inner()).collect()))
-                }
-                [v, u, ..] if v == "Vec" && u == "u8" => (parse_quote!(.as_b()), parse_quote!(.clone().into_inner())),
-                [v, ..] if v == "Vec" => {
-                    let rec = self.from_attribute_value_inner(&parse_quote!(e), hier + 1);
-                    (
-                        parse_quote!(.as_l()),
-                        parse_quote!(.iter().map(|e| #rec).collect()),
-                    )
-                }
-                // We assume this is a struct if it's otherwise not recognized
-                _ => (parse_quote!(.as_m()), parse_quote!(.into())),
-            };
+    fn unwrap_attribute_value_inner(&self, ident: &Expr, hier: usize) -> Expr {
+        let (as_, get_value): (TokenStream, TokenStream) = match &self.generics_hierarchy[hier..] {
+            [t, ..]
+                if matches!(
+                    t.as_str(),
+                    "i8" | "i16" | "i32" | "i64" | "i128" | "u8" | "u16" | "u32" | "u64" | "u128"
+                ) =>
+            {
+                (parse_quote!(.as_n()), parse_quote!(.parse().unwrap()))
+            }
+            [t, ..] if t == "String" => (parse_quote!(.as_s()), parse_quote!(.to_string())),
+            [h, s, ..] if h == "HashSet" && s == "String" => (
+                parse_quote!(.as_ss()),
+                parse_quote!(.iter().cloned().collect()),
+            ),
+            [h, v, u, ..] if h == "HashSet" && v == "Vec" && u == "u8" => (
+                parse_quote!(.as_bs()),
+                parse_quote!(.iter().map(|b| b.clone().into_inner()).collect()),
+            ),
+            [v, u, ..] if v == "Vec" && u == "u8" => {
+                (parse_quote!(.as_b()), parse_quote!(.clone().into_inner()))
+            }
+            [v, ..] if v == "Vec" => {
+                let rec = self.unwrap_attribute_value_inner(&parse_quote!(e), hier + 1);
+                (
+                    parse_quote!(.as_l()),
+                    parse_quote!(.iter().map(|e| #rec).collect()),
+                )
+            }
+            // We assume this is a struct if it's otherwise not recognized
+            _ => (parse_quote!(.as_m()), parse_quote!(.into())),
+        };
 
         if hier == 1 && self.is_option {
             parse_quote!(#ident #as_ .ok().map(|e| e #get_value))
@@ -143,7 +155,11 @@ impl ItemAttribute {
 
     pub fn scalar_type(&self) -> Expr {
         match self.generics_hierarchy.as_slice() {
-            [t] if matches!(t.as_str(), "i8"|"i16"|"i32"|"i64"|"i128"|"u8"|"u16"|"u32"|"u64"|"u128") => {
+            [t] if matches!(
+                t.as_str(),
+                "i8" | "i16" | "i32" | "i64" | "i128" | "u8" | "u16" | "u32" | "u64" | "u128"
+            ) =>
+            {
                 parse_quote! {::aymond::shim::aws_sdk_dynamodb::types::ScalarAttributeType::N}
             }
             [t] if t == "String" => {
@@ -154,17 +170,6 @@ impl ItemAttribute {
             }
             _ => panic!("Unknown variable type: {}", self.ty.to_token_stream()),
         }
-    }
-
-    pub fn ty_value(ty: &Type, is_option: bool) -> Type {
-        if is_option
-            && let Type::Path(TypePath { path, .. }) = ty
-            && let PathArguments::AngleBracketed(args) = &path.segments.first().unwrap().arguments
-            && let Some(GenericArgument::Type(inner_ty)) = args.args.first()
-        {
-            return inner_ty.clone();
-        }
-        ty.clone()
     }
 }
 
@@ -181,7 +186,21 @@ impl ItemAttribute {
             [t, ..] if t == "Option" => {
                 Self::condition_path_type_from_hierarchy(hierarchy, hier + 1)
             }
-            [t, ..] if matches!(t.as_str(), "i8"|"i16"|"i32"|"i64"|"i128"|"u8"|"u16"|"u32"|"u64"|"u128"|"bool") => {
+            [t, ..]
+                if matches!(
+                    t.as_str(),
+                    "i8" | "i16"
+                        | "i32"
+                        | "i64"
+                        | "i128"
+                        | "u8"
+                        | "u16"
+                        | "u32"
+                        | "u64"
+                        | "u128"
+                        | "bool"
+                ) =>
+            {
                 let ty: TokenStream = t.parse().unwrap();
                 parse_quote!(#cond::ScalarConditionPath<#ty>)
             }
@@ -232,7 +251,9 @@ impl ItemDefinition {
             let (is_hash, is_sort, custom_name) = match aymond_field_attr {
                 None => (false, false, None),
                 Some(attr) => {
-                    let inner: Meta = attr.parse_args().expect("Invalid #[aymond(...)] field annotation");
+                    let inner: Meta = attr
+                        .parse_args()
+                        .expect("Invalid #[aymond(...)] field annotation");
                     match &inner {
                         Meta::Path(p) if p.is_ident("hash_key") => (true, false, None),
                         Meta::Path(p) if p.is_ident("sort_key") => (false, true, None),
@@ -245,7 +266,9 @@ impl ItemDefinition {
                         Meta::List(list) if list.path.is_ident("attribute") => {
                             (false, false, Self::extract_attribute_name(list))
                         }
-                        _ => panic!("Unknown #[aymond(...)] field annotation. Expected hash_key, sort_key, or attribute(...)"),
+                        _ => panic!(
+                            "Unknown #[aymond(...)] field annotation. Expected hash_key, sort_key, or attribute(...)"
+                        ),
                     }
                 }
             };
@@ -276,11 +299,15 @@ impl ItemDefinition {
                 panic!("Sort key cannot be Option type");
             }
 
-            field.attrs.retain(|attr_def| !attr_def.path().is_ident("aymond"));
+            field
+                .attrs
+                .retain(|attr_def| !attr_def.path().is_ident("aymond"));
         }
 
         if !nested {
-            hash_key.as_ref().expect("#[aymond(hash_key)] must be defined");
+            hash_key
+                .as_ref()
+                .expect("#[aymond(hash_key)] must be defined");
         }
 
         ItemDefinition {
@@ -305,9 +332,10 @@ impl ItemDefinition {
             .find_map(|nv| {
                 if nv.path.is_ident("name")
                     && let Expr::Lit(expr_lit) = &nv.value
-                        && let Lit::Str(s) = &expr_lit.lit {
-                            return Some(s.value());
-                        }
+                    && let Lit::Str(s) = &expr_lit.lit
+                {
+                    return Some(s.value());
+                }
                 None
             })
     }

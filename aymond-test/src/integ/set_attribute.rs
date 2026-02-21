@@ -23,7 +23,12 @@ async fn test() {
         blobs: HashSet::from([vec![1u8, 2, 3]]),
         extra: None,
     };
-    table.put().item(it_factory()).send().await.expect("Failed to write");
+    table
+        .put()
+        .item(it_factory())
+        .send()
+        .await
+        .expect("Failed to write");
 
     // Round-trip get (None extra)
     let get = table.get().pk("row1").send().await.unwrap();
@@ -36,7 +41,12 @@ async fn test() {
         blobs: HashSet::from([vec![9u8]]),
         extra: Some(HashSet::from(["opt".to_string()])),
     };
-    table.put().item(it2_factory()).send().await.expect("Failed to write");
+    table
+        .put()
+        .item(it2_factory())
+        .send()
+        .await
+        .expect("Failed to write");
     let get = table.get().pk("row2").send().await.unwrap();
     assert_eq!(get.unwrap(), it2_factory());
 

@@ -15,11 +15,20 @@ async fn test() {
     table.delete(false).await.expect("Failed to delete");
     table.create(false).await.expect("Failed to create");
 
-    let it_factory = || Chunk { key: vec![1, 2, 3], range: vec![4, 5, 6] };
+    let it_factory = || Chunk {
+        key: vec![1, 2, 3],
+        range: vec![4, 5, 6],
+    };
     let it = it_factory();
     table.put().item(it).send().await.expect("Failed to write");
 
-    let get = table.get().key(vec![1, 2, 3]).range(vec![4, 5, 6]).send().await.unwrap();
+    let get = table
+        .get()
+        .key(vec![1, 2, 3])
+        .range(vec![4, 5, 6])
+        .send()
+        .await
+        .unwrap();
     assert_eq!(get.unwrap(), it_factory());
 
     let res = table
