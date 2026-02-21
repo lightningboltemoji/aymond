@@ -91,28 +91,12 @@ pub fn create_query_builder(item: &ItemDefinition) -> TokenStream {
         });
 
         let mut comparisons = vec![
+            ("gt", "#hk = :hk AND #sk > :b", vec![quote! {b}]),
+            ("ge", "#hk = :hk AND #sk >= :b", vec![quote! {b}]),
+            ("lt", "#hk = :hk AND #sk < :b", vec![quote! {b}]),
+            ("le", "#hk = :hk AND #sk <= :b", vec![quote! {b}]),
             (
-                format_ident!("{}_gt", sort_key_ident),
-                "#hk = :hk AND #sk > :b",
-                vec![quote! {b}],
-            ),
-            (
-                format_ident!("{}_ge", sort_key_ident),
-                "#hk = :hk AND #sk >= :b",
-                vec![quote! {b}],
-            ),
-            (
-                format_ident!("{}_lt", sort_key_ident),
-                "#hk = :hk AND #sk < :b",
-                vec![quote! {b}],
-            ),
-            (
-                format_ident!("{}_le", sort_key_ident),
-                "#hk = :hk AND #sk <= :b",
-                vec![quote! {b}],
-            ),
-            (
-                format_ident!("{}_between", sort_key_ident),
+                "between",
                 "#hk = :hk AND #sk BETWEEN :b AND :c",
                 vec![quote! {b}, quote! {c}],
             ),
@@ -125,13 +109,14 @@ pub fn create_query_builder(item: &ItemDefinition) -> TokenStream {
         };
         if sk_supports_begins_with {
             comparisons.push((
-                format_ident!("{}_begins_with", sort_key_ident),
+                "begins_with",
                 "#hk = :hk AND begins_with(#sk, :b)",
                 vec![quote! {b}],
             ));
         }
 
-        for (fn_name, key_expression, vars) in comparisons {
+        for (suffix, key_expression, vars) in comparisons {
+            let fn_name = format_ident!("{}_{}", sort_key_ident, suffix);
             chunks.push(quote! {
                 impl<'a> #sort_key_struct<'a> {
                     fn #fn_name (mut self, #( #vars: impl Into<#sort_key_typ>, )*) -> #query_struct<'a> {
