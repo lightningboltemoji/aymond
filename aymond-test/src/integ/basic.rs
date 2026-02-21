@@ -70,4 +70,87 @@ async fn test() {
         .await;
     let query: Vec<Car> = res.unwrap().items().iter().map(|e| e.into()).collect();
     assert_eq!(query, vec![it_factory()]);
+
+    // ── Condition expression tests ──
+
+    // Nested path condition: production.began > 1960 (true, should succeed)
+    table
+        .put()
+        .item(it_factory())
+        .condition(|c| c.production().began().gt(1960))
+        .send()
+        .await
+        .expect("Nested path condition should succeed");
+
+    // Nested path condition: production.units_produced >= 500_000 (true)
+    table
+        .put()
+        .item(it_factory())
+        .condition(|c| c.production().units().ge(500_000i64))
+        .send()
+        .await
+        .expect("Nested units condition should succeed");
+
+    // AND composition: make = "Porsche" AND hp > 500 (both true)
+    table
+        .put()
+        .item(it_factory())
+        .condition(|c| c.make().eq("Porsche").and(c.hp().gt(500i16)))
+        .send()
+        .await
+        .expect("AND condition should succeed");
+
+    // AND with false right side should fail: make = "Porsche" AND hp > 9000
+    let result = table
+        .put()
+        .item(it_factory())
+        .condition(|c| c.make().eq("Porsche").and(c.hp().gt(9000i16)))
+        .send()
+        .await;
+    assert!(result.is_err(), "AND with false RHS should fail");
+
+    // OR composition: make = "Toyota" OR hp > 500 (second is true)
+    table
+        .put()
+        .item(it_factory())
+        .condition(|c| c.make().eq("Toyota").or(c.hp().gt(500i16)))
+        .send()
+        .await
+        .expect("OR condition should succeed when one side is true");
+
+    // NOT: NOT(make = "Ford") — true because make is "Porsche"
+    table
+        .put()
+        .item(it_factory())
+        .condition(|c| c.make().eq("Ford").not())
+        .send()
+        .await
+        .expect("NOT condition should succeed");
+
+    // NOT: NOT(make = "Porsche") — should fail
+    let result = table
+        .put()
+        .item(it_factory())
+        .condition(|c| c.make().eq("Porsche").not())
+        .send()
+        .await;
+    assert!(result.is_err(), "NOT on true condition should fail");
+
+    // Vec indexing: variants[0] = "Carrera" (true)
+    table
+        .put()
+        .item(it_factory())
+        .condition(|c| c.variants().index(0).eq("Carrera"))
+        .send()
+        .await
+        .expect("Vec index condition should succeed");
+
+    // Vec indexing: variants[0] = "wrong" (false, should fail)
+    let result = table
+        .put()
+        .item(it_factory())
+        .condition(|c| c.variants().index(0).eq("wrong"))
+        .send()
+        .await;
+    assert!(result.is_err(), "Vec index with wrong value should fail");
 }

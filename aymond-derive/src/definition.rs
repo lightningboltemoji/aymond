@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use proc_macro2::TokenStream;
-use quote::ToTokens;
+use quote::{ToTokens, format_ident};
 use syn::{
     Attribute, Data, DeriveInput, Expr, Fields, GenericArgument, Ident, Lit, Meta, MetaNameValue,
     PathArguments, Token, Type, TypePath, parse_quote, punctuated::Punctuated,
@@ -167,6 +167,49 @@ impl ItemAttribute {
             return inner_ty.clone();
         }
         ty.clone()
+    }
+}
+
+impl ItemAttribute {
+    /// Returns the TokenStream for the condition path return type based on generics_hierarchy.
+    /// `hier` is the starting index into generics_hierarchy (used to skip Option wrapper).
+    pub fn condition_path_type(&self) -> TokenStream {
+        Self::condition_path_type_from_hierarchy(&self.generics_hierarchy, 0)
+    }
+
+    fn condition_path_type_from_hierarchy(hierarchy: &[String], hier: usize) -> TokenStream {
+        let cond: TokenStream = parse_quote!(::aymond::condition);
+        match &hierarchy[hier..] {
+            [t, ..] if t == "Option" => {
+                Self::condition_path_type_from_hierarchy(hierarchy, hier + 1)
+            }
+            [t, ..] if matches!(t.as_str(), "i8"|"i16"|"i32"|"i64"|"i128"|"u8"|"u16"|"u32"|"u64"|"u128"|"bool") => {
+                let ty: TokenStream = t.parse().unwrap();
+                parse_quote!(#cond::ScalarConditionPath<#ty>)
+            }
+            [t, ..] if t == "String" => {
+                parse_quote!(#cond::ScalarConditionPath<String>)
+            }
+            [v, u, ..] if v == "Vec" && u == "u8" => {
+                parse_quote!(#cond::ScalarConditionPath<Vec<u8>>)
+            }
+            [v, ..] if v == "Vec" => {
+                let inner = Self::condition_path_type_from_hierarchy(hierarchy, hier + 1);
+                parse_quote!(#cond::ListConditionPath<#inner>)
+            }
+            [h, s, ..] if h == "HashSet" && s == "String" => {
+                parse_quote!(#cond::StringSetConditionPath)
+            }
+            [h, v, u, ..] if h == "HashSet" && v == "Vec" && u == "u8" => {
+                parse_quote!(#cond::BinarySetConditionPath)
+            }
+            // Assume nested struct
+            [name, ..] => {
+                let path_ident = format_ident!("{}ConditionPath", name);
+                parse_quote!(#path_ident)
+            }
+            [] => panic!("Empty generics_hierarchy"),
+        }
     }
 }
 

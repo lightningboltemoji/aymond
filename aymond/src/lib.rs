@@ -10,6 +10,7 @@ pub mod prelude {
     pub use aymond_derive::aymond;
 }
 
+pub mod condition;
 pub mod shim;
 pub mod traits;
 

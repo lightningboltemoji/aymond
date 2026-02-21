@@ -58,7 +58,7 @@ async fn test() {
             blobs: HashSet::from([vec![0u8]]),
             extra: None,
         })
-        .condition(|c| c.labels_contains("java".to_string()))
+        .condition(|c| c.labels().contains("java"))
         .send()
         .await;
     assert!(result.is_err());

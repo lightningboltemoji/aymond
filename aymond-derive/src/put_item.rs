@@ -1,4 +1,4 @@
-use crate::{ItemAttribute, definition::ItemDefinition};
+use crate::definition::ItemDefinition;
 use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
 use syn::{Expr, parse_quote};
@@ -36,9 +36,9 @@ pub fn create_put_item_builder(item: &ItemDefinition) -> TokenStream {
 
             fn condition<F>(mut self, f: F) -> #put_item_struct<'a>
             where
-                F: FnOnce(#condition_builder_struct) -> #condition_builder_struct
+                F: FnOnce(#condition_builder_struct) -> ::aymond::condition::CondExpr
             {
-                let (cond_expr, expr_name, expr_value) = f(#condition_builder_struct::new()).into();
+                let (cond_expr, expr_name, expr_value) = f(#condition_builder_struct).build();
                 self.cond_expr = Some(cond_expr);
                 self.expr_name = Some(expr_name);
                 self.expr_value = Some(expr_value);
@@ -101,143 +101,29 @@ pub fn create_put_item_builder(item: &ItemDefinition) -> TokenStream {
 }
 
 fn create_condition_builder(item: &ItemDefinition) -> (TokenStream, Ident) {
-    let aws_sdk_dynamodb: Expr = parse_quote!(::aymond::shim::aws_sdk_dynamodb);
+    let ident = format_ident!("{}Condition", &item.name);
 
-    let ident = format_ident!("{}PutItemCondition", &item.name);
-
-    let mut statics: Vec<TokenStream> = vec![];
-    for (fn_name, val) in [
-        ("and", "AND"),
-        ("or", "OR"),
-        ("not", "NOT"),
-        ("paren_open", "("),
-        ("paren_close", ")"),
-    ] {
-        let fn_name = format_ident!("{}", fn_name);
-        statics.push(quote! {
-            fn #fn_name(mut self) -> Self {
-                self.fragments.push(#val.into());
-                self
-            }
-        });
-    }
-
-    let attribute_ops: Vec<TokenStream> = item
+    let accessors: Vec<TokenStream> = item
         .all_attributes()
-        .flat_map(|i: &ItemAttribute| {
-            let attr_name = i.ddb_name.clone();
-            let attr_typ = i.ty_value.clone();
-            let boxer = if i.is_option {
-                i.to_attribute_value(&parse_quote!(Some(v)))
-            } else {
-                i.to_attribute_value(&parse_quote!(v))
-            };
-            let field = i.field.clone();
-
-            [
-                ("eq", "="),
-                ("ne", "<>"),
-                ("lt", "<"),
-                ("gt", ">"),
-                ("le", "<="),
-                ("ge", ">="),
-            ]
-            .into_iter()
-            .map(move |(suffix, op)| {
-                let fn_name = format_ident!("{}_{}", field, suffix);
-                let expr_fmt = format!("#{{0}} {} :{{0}}", op);
-                let boxer = boxer.clone();
-                let attr_name = attr_name.clone();
-                let attr_typ = attr_typ.clone();
-                quote! {
-                    fn #fn_name(mut self, v: #attr_typ) -> Self {
-                        let id = self.cur;
-                        self.cur = (id as u8 + 1) as char;
-                        self.fragments.push(format!(#expr_fmt, id));
-                        self.expr_name.insert(format!("#{}", id), #attr_name.to_string());
-                        self.expr_value.insert(format!(":{}", id), #boxer);
-                        self
-                    }
+        .map(|attr| {
+            let fn_name = &attr.field;
+            let ddb_name = &attr.ddb_name;
+            let return_type = attr.condition_path_type();
+            quote! {
+                pub fn #fn_name(&self) -> #return_type {
+                    ::aymond::condition::ConditionPathRoot::with_prefix(
+                        vec![::aymond::condition::PathSegment::Attr(#ddb_name.to_string())]
+                    )
                 }
-            })
-            .collect::<Vec<_>>()
-        })
-        .collect();
-
-    let contains_ops: Vec<TokenStream> = item
-        .all_attributes()
-        .filter_map(|i: &ItemAttribute| {
-            let h = &i.generics_hierarchy;
-            let attr_name = &i.ddb_name;
-            let fn_name = format_ident!("{}_contains", &i.field);
-
-            let inner: &[_] = match h.as_slice() {
-                [o, rest @ ..] if o == "Option" => rest,
-                all => all,
-            };
-            match inner {
-                [h, s, ..] if h == "HashSet" && s == "String" => Some(quote! {
-                    fn #fn_name(mut self, v: String) -> Self {
-                        let id = self.cur;
-                        self.cur = (id as u8 + 1) as char;
-                        self.fragments.push(format!("contains(#{0}, :{0})", id));
-                        self.expr_name.insert(format!("#{}", id), #attr_name.to_string());
-                        self.expr_value.insert(format!(":{}", id), #aws_sdk_dynamodb::types::AttributeValue::S(v));
-                        self
-                    }
-                }),
-                [h, v, u, ..] if h == "HashSet" && v == "Vec" && u == "u8" => Some(quote! {
-                    fn #fn_name(mut self, v: Vec<u8>) -> Self {
-                        let id = self.cur;
-                        self.cur = (id as u8 + 1) as char;
-                        self.fragments.push(format!("contains(#{0}, :{0})", id));
-                        self.expr_name.insert(format!("#{}", id), #attr_name.to_string());
-                        self.expr_value.insert(format!(":{}", id), #aws_sdk_dynamodb::types::AttributeValue::B(
-                            ::aymond::shim::aws_sdk_dynamodb::primitives::Blob::new(v)
-                        ));
-                        self
-                    }
-                }),
-                _ => None,
             }
         })
         .collect();
 
     let imp = quote! {
-        struct #ident {
-            fragments: Vec<String>,
-            expr_name: ::std::collections::HashMap<String, String>,
-            expr_value: ::std::collections::HashMap<String, #aws_sdk_dynamodb::types::AttributeValue>,
-            cur: char,
-        }
+        pub struct #ident;
 
         impl #ident {
-            fn new() -> Self {
-                Self {
-                    fragments: vec![],
-                    expr_name: ::std::collections::HashMap::new(),
-                    expr_value: ::std::collections::HashMap::new(),
-                    cur: 'a',
-                }
-            }
-
-            #( #statics )*
-            #( #attribute_ops )*
-            #( #contains_ops )*
-        }
-
-        impl Into<(
-            String,
-            ::std::collections::HashMap<String, String>,
-            ::std::collections::HashMap<String, #aws_sdk_dynamodb::types::AttributeValue>
-        )> for #ident {
-            fn into(self) -> (
-                String,
-                ::std::collections::HashMap<String, String>,
-                ::std::collections::HashMap<String, #aws_sdk_dynamodb::types::AttributeValue>
-            ) {
-                (self.fragments.join(" "), self.expr_name, self.expr_value)
-            }
+            #( #accessors )*
         }
     };
     (imp, ident)
