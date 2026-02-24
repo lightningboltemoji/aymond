@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use aws_config::Region;
 use aws_credential_types::Credentials;
-use aws_sdk_dynamodb::types::{Put, TransactWriteItem};
+use aws_sdk_dynamodb::types::{Delete, Put, TransactWriteItem};
 use aws_types::sdk_config::SharedCredentialsProvider;
 
 pub mod prelude {
@@ -17,6 +17,7 @@ pub mod traits;
 pub struct Tx<'a> {
     client: &'a HighLevelClient,
     put: Vec<Put>,
+    delete: Vec<Delete>,
 }
 
 pub struct HighLevelClient {
@@ -65,6 +66,7 @@ impl<'a> HighLevelClient {
         Tx {
             client: self,
             put: vec![],
+            delete: vec![],
         }
     }
 }
@@ -72,6 +74,11 @@ impl<'a> HighLevelClient {
 impl<'a> Tx<'a> {
     pub fn put(mut self, put: impl Into<Put>) -> Self {
         self.put.push(put.into());
+        self
+    }
+
+    pub fn delete(mut self, delete: impl Into<Delete>) -> Self {
+        self.delete.push(delete.into());
         self
     }
 
@@ -114,6 +121,9 @@ impl<'a> From<Tx<'a>> for Option<Vec<TransactWriteItem>> {
         let mut vec = vec![];
         for p in val.put {
             vec.push(TransactWriteItem::builder().put(p).build());
+        }
+        for d in val.delete {
+            vec.push(TransactWriteItem::builder().delete(d).build());
         }
         Some(vec)
     }

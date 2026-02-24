@@ -20,10 +20,11 @@ pub trait Item:
     fn key_attribute_defintions() -> Vec<AttributeDefinition>;
 }
 
-pub trait Table<'a, T, G, GHK, P, Q, QHK, S, B>
+pub trait Table<'a, T, G, GHK, P, Q, QHK, S, B, D, DHK>
 where
     T: Item,
     GHK: 'a,
+    DHK: 'a,
 {
     fn new(client: &'a HighLevelClient, table_name: impl Into<String>) -> Self;
 
@@ -46,4 +47,6 @@ where
     fn scan(&'a self) -> S;
 
     fn batch_get(&'a self) -> B;
+
+    fn delete_item(&'a self) -> DHK;
 }

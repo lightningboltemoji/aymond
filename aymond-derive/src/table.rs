@@ -4,7 +4,8 @@ use syn::{Expr, parse_quote};
 
 use crate::{
     ItemDefinition, batch_get_item::create_batch_get_builder, create_query_builder,
-    create_scan_builder, get_item::create_get_builder, put_item::create_put_item_builder,
+    create_scan_builder, delete_item::create_delete_builder, get_item::create_get_builder,
+    put_item::create_put_item_builder,
 };
 
 pub fn create_table(def: &ItemDefinition) -> TokenStream {
@@ -19,18 +20,22 @@ pub fn create_table(def: &ItemDefinition) -> TokenStream {
     let query_hash_key_struct = format_ident!("{}QueryHashKey", &name);
     let scan_struct = format_ident!("{}Scan", &name);
     let batch_get_struct = format_ident!("{}BatchGetItem", &name);
+    let delete_item_struct = format_ident!("{}DeleteItem", &name);
+    let delete_item_hash_key_struct = format_ident!("{}DeleteItemHashKey", &name);
 
     let get_item = create_get_builder(def);
     let put_item = create_put_item_builder(def);
     let query = create_query_builder(def);
     let scan = create_scan_builder(def);
     let batch_get = create_batch_get_builder(def);
+    let delete_item = create_delete_builder(def);
     quote! {
         #get_item
         #put_item
         #query
         #scan
         #batch_get
+        #delete_item
 
         #[derive(Debug)]
         struct #table_struct {
@@ -38,7 +43,7 @@ pub fn create_table(def: &ItemDefinition) -> TokenStream {
             table_name: String,
         }
 
-        impl<'a> Table<'a, #name, #get_item_struct<'a>, #get_item_hash_key_struct<'a>, #put_item_struct<'a>, #query_struct<'a>, #query_hash_key_struct<'a>, #scan_struct<'a>, #batch_get_struct<'a>> for #table_struct {
+        impl<'a> Table<'a, #name, #get_item_struct<'a>, #get_item_hash_key_struct<'a>, #put_item_struct<'a>, #query_struct<'a>, #query_hash_key_struct<'a>, #scan_struct<'a>, #batch_get_struct<'a>, #delete_item_struct<'a>, #delete_item_hash_key_struct<'a>> for #table_struct {
 
             fn new(
                 client: &'a ::aymond::HighLevelClient,
@@ -109,6 +114,10 @@ pub fn create_table(def: &ItemDefinition) -> TokenStream {
 
             fn batch_get(&'a self) -> #batch_get_struct<'a> {
                 #batch_get_struct::new(self)
+            }
+
+            fn delete_item(&'a self) -> #delete_item_hash_key_struct<'a> {
+                #delete_item_struct::new(self)
             }
         }
     }

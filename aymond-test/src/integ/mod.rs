@@ -1,6 +1,7 @@
 mod basic;
 mod batch_get;
 mod binary_keys;
+mod delete_item;
 mod no_sort_key;
 mod no_table;
 mod numeric_keys;
