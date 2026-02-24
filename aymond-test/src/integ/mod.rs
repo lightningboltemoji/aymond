@@ -4,6 +4,7 @@ mod no_sort_key;
 mod no_table;
 mod numeric_keys;
 mod option_attribute;
+mod scan;
 mod set_attribute;
 
 #[test]

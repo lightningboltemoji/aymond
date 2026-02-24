@@ -20,7 +20,7 @@ pub trait Item:
     fn key_attribute_defintions() -> Vec<AttributeDefinition>;
 }
 
-pub trait Table<'a, T, G, GHK, P, Q, QHK>
+pub trait Table<'a, T, G, GHK, P, Q, QHK, S>
 where
     T: Item,
     GHK: 'a,
@@ -42,4 +42,6 @@ where
     fn put(&'a self) -> P;
 
     fn query(&'a self) -> QHK;
+
+    fn scan(&'a self) -> S;
 }

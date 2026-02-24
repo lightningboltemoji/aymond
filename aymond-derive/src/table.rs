@@ -3,7 +3,7 @@ use quote::{format_ident, quote};
 use syn::{Expr, parse_quote};
 
 use crate::{
-    ItemDefinition, create_query_builder, get_item::create_get_builder,
+    ItemDefinition, create_query_builder, create_scan_builder, get_item::create_get_builder,
     put_item::create_put_item_builder,
 };
 
@@ -17,14 +17,17 @@ pub fn create_table(def: &ItemDefinition) -> TokenStream {
     let put_item_struct = format_ident!("{}PutItem", &name);
     let query_struct = format_ident!("{}Query", &name);
     let query_hash_key_struct = format_ident!("{}QueryHashKey", &name);
+    let scan_struct = format_ident!("{}Scan", &name);
 
     let get_item = create_get_builder(def);
     let put_item = create_put_item_builder(def);
     let query = create_query_builder(def);
+    let scan = create_scan_builder(def);
     quote! {
         #get_item
         #put_item
         #query
+        #scan
 
         #[derive(Debug)]
         struct #table_struct {
@@ -32,7 +35,7 @@ pub fn create_table(def: &ItemDefinition) -> TokenStream {
             table_name: String,
         }
 
-        impl<'a> Table<'a, #name, #get_item_struct<'a>, #get_item_hash_key_struct<'a>, #put_item_struct<'a>, #query_struct<'a>, #query_hash_key_struct<'a>> for #table_struct {
+        impl<'a> Table<'a, #name, #get_item_struct<'a>, #get_item_hash_key_struct<'a>, #put_item_struct<'a>, #query_struct<'a>, #query_hash_key_struct<'a>, #scan_struct<'a>> for #table_struct {
 
             fn new(
                 client: &'a ::aymond::HighLevelClient,
@@ -95,6 +98,10 @@ pub fn create_table(def: &ItemDefinition) -> TokenStream {
 
             fn query(&'a self) -> #query_hash_key_struct<'a> {
                 #query_struct::new(self)
+            }
+
+            fn scan(&'a self) -> #scan_struct<'a> {
+                #scan_struct::new(self)
             }
         }
     }

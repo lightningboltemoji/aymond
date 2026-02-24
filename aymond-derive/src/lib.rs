@@ -7,6 +7,7 @@ use crate::{
     item::create_item,
     nested_item::create_nested_item,
     query::create_query_builder,
+    scan::create_scan_builder,
     table::create_table,
 };
 
@@ -17,6 +18,7 @@ mod marshal;
 mod nested_item;
 mod put_item;
 mod query;
+mod scan;
 mod table;
 
 #[proc_macro_attribute]
