@@ -24,7 +24,13 @@ async fn test_delete_with_sort_key() {
     table.put().item(it).send().await.expect("Failed to write");
 
     // Verify it exists
-    let get = table.get().make("Porsche").model("911").send().await.unwrap();
+    let get = table
+        .get()
+        .make("Porsche")
+        .model("911")
+        .send()
+        .await
+        .unwrap();
     assert!(get.is_some());
 
     // Delete it
@@ -37,7 +43,13 @@ async fn test_delete_with_sort_key() {
         .expect("Failed to delete item");
 
     // Verify it's gone
-    let get = table.get().make("Porsche").model("911").send().await.unwrap();
+    let get = table
+        .get()
+        .make("Porsche")
+        .model("911")
+        .send()
+        .await
+        .unwrap();
     assert!(get.is_none());
 }
 
@@ -113,10 +125,19 @@ async fn test_delete_with_condition() {
         .condition(|c| c.hp().gt(9000i16))
         .send()
         .await;
-    assert!(result.is_err(), "Condition should fail when hp is not > 9000");
+    assert!(
+        result.is_err(),
+        "Condition should fail when hp is not > 9000"
+    );
 
     // Verify it still exists
-    let get = table.get().make("Porsche").model("911").send().await.unwrap();
+    let get = table
+        .get()
+        .make("Porsche")
+        .model("911")
+        .send()
+        .await
+        .unwrap();
     assert!(get.is_some());
 
     // Delete with a condition that succeeds (hp > 500)
@@ -130,7 +151,13 @@ async fn test_delete_with_condition() {
         .expect("Condition should succeed when hp > 500");
 
     // Verify it's gone
-    let get = table.get().make("Porsche").model("911").send().await.unwrap();
+    let get = table
+        .get()
+        .make("Porsche")
+        .model("911")
+        .send()
+        .await
+        .unwrap();
     assert!(get.is_none());
 }
 
@@ -196,9 +223,21 @@ async fn test_delete_in_transaction() {
     client.tx().put(put1).put(put2).send().await.unwrap();
 
     // Verify both exist
-    let get1 = table.get().make("Porsche").model("911").send().await.unwrap();
+    let get1 = table
+        .get()
+        .make("Porsche")
+        .model("911")
+        .send()
+        .await
+        .unwrap();
     assert!(get1.is_some());
-    let get2 = table.get().make("Porsche").model("Cayenne").send().await.unwrap();
+    let get2 = table
+        .get()
+        .make("Porsche")
+        .model("Cayenne")
+        .send()
+        .await
+        .unwrap();
     assert!(get2.is_some());
 
     // Delete both in a transaction
@@ -207,9 +246,21 @@ async fn test_delete_in_transaction() {
     client.tx().delete(del1).delete(del2).send().await.unwrap();
 
     // Verify both are gone
-    let get1 = table.get().make("Porsche").model("911").send().await.unwrap();
+    let get1 = table
+        .get()
+        .make("Porsche")
+        .model("911")
+        .send()
+        .await
+        .unwrap();
     assert!(get1.is_none());
-    let get2 = table.get().make("Porsche").model("Cayenne").send().await.unwrap();
+    let get2 = table
+        .get()
+        .make("Porsche")
+        .model("Cayenne")
+        .send()
+        .await
+        .unwrap();
     assert!(get2.is_none());
 }
 
@@ -250,7 +301,13 @@ async fn test_mixed_put_delete_transaction() {
     client.tx().delete(del).put(put).send().await.unwrap();
 
     // Old item gone
-    let get = table.get().make("Porsche").model("911").send().await.unwrap();
+    let get = table
+        .get()
+        .make("Porsche")
+        .model("911")
+        .send()
+        .await
+        .unwrap();
     assert!(get.is_none());
 
     // New item exists
