@@ -412,6 +412,7 @@ dependencies = [
  "aws-types",
  "aymond-derive",
  "futures",
+ "tokio",
 ]
 
 [[package]]

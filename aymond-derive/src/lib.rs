@@ -11,6 +11,7 @@ use crate::{
     table::create_table,
 };
 
+mod batch_get_item;
 mod definition;
 mod get_item;
 mod item;

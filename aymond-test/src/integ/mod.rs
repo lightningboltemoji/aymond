@@ -1,4 +1,5 @@
 mod basic;
+mod batch_get;
 mod binary_keys;
 mod no_sort_key;
 mod no_table;
