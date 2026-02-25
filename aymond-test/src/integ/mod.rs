@@ -8,6 +8,7 @@ mod no_table;
 mod numeric_keys;
 mod option_attribute;
 mod scan;
+mod secondary_indexes;
 mod set_attribute;
 
 #[test]

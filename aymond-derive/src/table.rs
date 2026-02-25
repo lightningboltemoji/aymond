@@ -5,8 +5,8 @@ use syn::{Expr, parse_quote};
 use crate::{
     ItemDefinition, batch_get_item::create_batch_get_builder,
     batch_write_item::create_batch_write_builder, create_query_builder, create_scan_builder,
-    delete_item::create_delete_builder, get_item::create_get_builder,
-    put_item::create_put_item_builder,
+    create_table::create_create_method, delete_item::create_delete_builder,
+    get_item::create_get_builder, put_item::create_put_item_builder,
 };
 
 pub fn create_table(def: &ItemDefinition) -> TokenStream {
@@ -32,6 +32,7 @@ pub fn create_table(def: &ItemDefinition) -> TokenStream {
     let batch_get = create_batch_get_builder(def);
     let delete_item = create_delete_builder(def);
     let batch_write = create_batch_write_builder(def);
+    let create_method = create_create_method(def);
     quote! {
         #get_item
         #put_item
@@ -59,27 +60,7 @@ pub fn create_table(def: &ItemDefinition) -> TokenStream {
                 }
             }
 
-            async fn create(&self, err_if_exists: bool) -> Result<
-                (), #aws_sdk_dynamodb::error::SdkError<
-                    #aws_sdk_dynamodb::operation::create_table::CreateTableError,
-                    #aws_sdk_dynamodb::config::http::HttpResponse
-                >
-            > {
-                let res = self.client.create_table()
-                    .table_name(&self.table_name)
-                    .set_key_schema(Some(#name::key_schemas()))
-                    .set_attribute_definitions(Some(#name::key_attribute_defintions()))
-                    .billing_mode(#aws_sdk_dynamodb::types::BillingMode::PayPerRequest)
-                    .send();
-                match res.await {
-                    Err(e) => match e {
-                        #aws_sdk_dynamodb::error::SdkError::ServiceError(ref context)
-                            if !err_if_exists && context.err().is_resource_in_use_exception() => Ok(()),
-                        _ => Err(e)
-                    }
-                    _ => Ok(())
-                }
-            }
+            #create_method
 
             async fn delete(&self, err_if_not_exists: bool) -> Result<
                 (), #aws_sdk_dynamodb::error::SdkError<

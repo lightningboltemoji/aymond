@@ -1,10 +1,12 @@
 use proc_macro2::TokenStream;
 use quote::{ToTokens, format_ident};
+use std::collections::HashMap;
 use syn::{
-    Data, DeriveInput, Expr, Fields, GenericArgument, Ident, Lit, Meta, MetaList, MetaNameValue,
-    PathArguments, Token, Type, parse_quote, punctuated::Punctuated,
+    Data, DeriveInput, Expr, Fields, GenericArgument, Ident, Lit, LitStr, Meta, MetaList,
+    MetaNameValue, Path, PathArguments, Token, Type, parse_quote, punctuated::Punctuated,
 };
 
+#[derive(Clone)]
 pub struct ItemAttribute {
     pub field: Ident,
     pub ddb_name: String,
@@ -13,11 +15,29 @@ pub struct ItemAttribute {
     pub generics_hierarchy: Vec<String>,
 }
 
+pub enum GsiRole {
+    HashKey,
+    SortKey,
+}
+
+pub struct GsiDefinition {
+    pub name: String,
+    pub hash_key: Option<ItemAttribute>,
+    pub sort_key: Option<ItemAttribute>,
+}
+
+pub struct LsiDefinition {
+    pub name: String,
+    pub sort_key: ItemAttribute,
+}
+
 pub struct ItemDefinition {
     pub name: String,
     pub hash_key: Option<ItemAttribute>,
     pub sort_key: Option<ItemAttribute>,
     pub other_attributes: Vec<ItemAttribute>,
+    pub global_secondary_indexes: HashMap<String, GsiDefinition>,
+    pub local_secondary_indexes: HashMap<String, LsiDefinition>,
 }
 
 impl ItemAttribute {
@@ -245,33 +265,57 @@ impl ItemDefinition {
         let mut hash_key = None;
         let mut sort_key = None;
         let mut other_attributes = vec![];
+        let mut gsis: HashMap<String, GsiDefinition> = HashMap::new();
+        let mut lsis: HashMap<String, LsiDefinition> = HashMap::new();
 
         for field in &mut fields_named.named {
-            let aymond_field_attr = field.attrs.iter().find(|a| a.path().is_ident("aymond"));
-            let (is_hash, is_sort, custom_name) = match aymond_field_attr {
-                None => (false, false, None),
-                Some(attr) => {
-                    let inner: Meta = attr
-                        .parse_args()
-                        .expect("Invalid #[aymond(...)] field annotation");
-                    match &inner {
-                        Meta::Path(p) if p.is_ident("hash_key") => (true, false, None),
-                        Meta::Path(p) if p.is_ident("sort_key") => (false, true, None),
-                        Meta::List(list) if list.path.is_ident("hash_key") => {
-                            (true, false, Self::extract_attribute_name(list))
-                        }
-                        Meta::List(list) if list.path.is_ident("sort_key") => {
-                            (false, true, Self::extract_attribute_name(list))
-                        }
-                        Meta::List(list) if list.path.is_ident("attribute") => {
-                            (false, false, Self::extract_attribute_name(list))
-                        }
-                        _ => panic!(
-                            "Unknown #[aymond(...)] field annotation. Expected hash_key, sort_key, or attribute(...)"
-                        ),
+            let aymond_attrs: Vec<_> = field
+                .attrs
+                .iter()
+                .filter(|a| a.path().is_ident("aymond"))
+                .collect();
+
+            let mut is_hash = false;
+            let mut is_sort = false;
+            let mut custom_name = None;
+            let mut gsi_entries: Vec<(String, GsiRole)> = vec![];
+            let mut lsi_entries: Vec<String> = vec![];
+
+            for attr in &aymond_attrs {
+                let inner: Meta = attr
+                    .parse_args()
+                    .expect("Invalid #[aymond(...)] field annotation");
+                match &inner {
+                    Meta::Path(p) if p.is_ident("hash_key") => is_hash = true,
+                    Meta::Path(p) if p.is_ident("sort_key") => is_sort = true,
+                    Meta::List(list) if list.path.is_ident("hash_key") => {
+                        is_hash = true;
+                        custom_name = Self::extract_attribute_name(list);
                     }
+                    Meta::List(list) if list.path.is_ident("sort_key") => {
+                        is_sort = true;
+                        custom_name = Self::extract_attribute_name(list);
+                    }
+                    Meta::List(list) if list.path.is_ident("attribute") => {
+                        custom_name = Self::extract_attribute_name(list);
+                    }
+                    Meta::List(list)
+                        if list.path.is_ident("global_secondary_index")
+                            || list.path.is_ident("gsi") =>
+                    {
+                        gsi_entries.push(Self::parse_gsi_args(list));
+                    }
+                    Meta::List(list)
+                        if list.path.is_ident("local_secondary_index")
+                            || list.path.is_ident("lsi") =>
+                    {
+                        lsi_entries.push(Self::parse_lsi_args(list));
+                    }
+                    _ => panic!(
+                        "Unknown #[aymond(...)] field annotation. Expected hash_key, sort_key, attribute(...), global_secondary_index(...)/gsi(...), or local_secondary_index(...)/lsi(...)"
+                    ),
                 }
-            };
+            }
 
             if is_hash && hash_key.is_some() {
                 panic!("Multiple attributes with #[aymond(hash_key)]");
@@ -280,10 +324,31 @@ impl ItemDefinition {
             }
 
             let field_name = field.ident.as_ref().unwrap().to_string();
-            let attr_name = custom_name.unwrap_or(field_name);
+            let attr_name = custom_name.unwrap_or_else(|| field_name.clone());
 
             let ty = field.ty.clone();
             let item_attribute = ItemAttribute::new(field.ident.clone().unwrap(), attr_name, ty);
+
+            for (idx_name, role) in gsi_entries {
+                let def = gsis.entry(idx_name.clone()).or_insert_with(|| GsiDefinition {
+                    name: idx_name.clone(),
+                    hash_key: None,
+                    sort_key: None,
+                });
+                match role {
+                    GsiRole::HashKey => def.hash_key = Some(item_attribute.clone()),
+                    GsiRole::SortKey => def.sort_key = Some(item_attribute.clone()),
+                }
+            }
+            for idx_name in lsi_entries {
+                lsis.insert(
+                    idx_name.clone(),
+                    LsiDefinition {
+                        name: idx_name,
+                        sort_key: item_attribute.clone(),
+                    },
+                );
+            }
 
             if is_hash {
                 hash_key = Some(item_attribute);
@@ -315,6 +380,8 @@ impl ItemDefinition {
             hash_key,
             sort_key,
             other_attributes,
+            global_secondary_indexes: gsis,
+            local_secondary_indexes: lsis,
         }
     }
 
@@ -323,6 +390,40 @@ impl ItemDefinition {
             .iter()
             .chain(self.sort_key.iter())
             .chain(self.other_attributes.iter())
+    }
+
+    fn parse_gsi_args(list: &MetaList) -> (String, GsiRole) {
+        struct GsiArgs {
+            name: LitStr,
+            role: Path,
+        }
+        impl syn::parse::Parse for GsiArgs {
+            fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+                let name: LitStr = input.parse()?;
+                let _: Token![,] = input.parse()?;
+                let role: Path = input.parse()?;
+                Ok(GsiArgs { name, role })
+            }
+        }
+        let args: GsiArgs = list
+            .parse_args()
+            .expect("Invalid GSI annotation. Expected: gsi(\"name\", hash_key|sort_key)");
+        let name = args.name.value();
+        let role = if args.role.is_ident("hash_key") {
+            GsiRole::HashKey
+        } else if args.role.is_ident("sort_key") {
+            GsiRole::SortKey
+        } else {
+            panic!("Invalid GSI role. Expected hash_key or sort_key")
+        };
+        (name, role)
+    }
+
+    fn parse_lsi_args(list: &MetaList) -> String {
+        let name: LitStr = list
+            .parse_args()
+            .expect("Invalid LSI annotation. Expected: lsi(\"name\")");
+        name.value()
     }
 
     fn extract_attribute_name(list: &MetaList) -> Option<String> {

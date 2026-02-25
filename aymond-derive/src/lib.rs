@@ -13,6 +13,7 @@ use crate::{
 
 mod batch_get_item;
 mod batch_write_item;
+mod create_table;
 mod definition;
 mod delete_item;
 mod get_item;

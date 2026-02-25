@@ -182,9 +182,9 @@ pub fn create_query_builder(item: &ItemDefinition) -> TokenStream {
         #( #chunks )*
 
         impl<'a> #query_struct<'a> {
-            async fn send(self) -> impl ::aymond::shim::futures::Stream<Item = Result<#item_struct, ::aymond::shim::aws_sdk_dynamodb::error::SdkError<
-                ::aymond::shim::aws_sdk_dynamodb::operation::query::QueryError,
-                ::aymond::shim::aws_sdk_dynamodb::config::http::HttpResponse
+            async fn send(self) -> impl ::aymond::shim::futures::Stream<Item = Result<#item_struct, #aws_sdk_dynamodb::error::SdkError<
+                #aws_sdk_dynamodb::operation::query::QueryError,
+                #aws_sdk_dynamodb::config::http::HttpResponse
             >>> + 'a
             {
                 let query = self.table.client.query();
@@ -207,10 +207,10 @@ pub fn create_query_builder(item: &ItemDefinition) -> TokenStream {
                 self,
                 f: F,
             ) -> Result<
-                ::aymond::shim::aws_sdk_dynamodb::operation::query::QueryOutput,
-                ::aymond::shim::aws_sdk_dynamodb::error::SdkError<
-                    ::aymond::shim::aws_sdk_dynamodb::operation::query::QueryError,
-                    ::aymond::shim::aws_sdk_dynamodb::config::http::HttpResponse,
+                #aws_sdk_dynamodb::operation::query::QueryOutput,
+                #aws_sdk_dynamodb::error::SdkError<
+                    #aws_sdk_dynamodb::operation::query::QueryError,
+                    #aws_sdk_dynamodb::config::http::HttpResponse,
                 >,
             >
             where
