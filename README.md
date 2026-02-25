@@ -11,9 +11,9 @@ Item shapes are described by structs:
 ```rust
 #[aymond(item, table)]
 struct Car {
-    #[hash_key]
+    #[aymond(hash_key)]
     make: String,
-    #[sort_key]
+    #[aymond(sort_key)]
     model: String,
     hp: i16,
     variants: Vec<String>,
@@ -23,7 +23,7 @@ struct Car {
 #[aymond(nested_item)]
 struct Production {
     began: i32,
-    #[attribute(name = "units_produced")]
+    #[aymond(attribute(name = "units_produced"))]
     units: i64,
 }
 ```
@@ -32,7 +32,8 @@ Interacting with the table is done through a `Table` instance:
 
 ```rust
 // Create a table in local DynamoDB, based on our item schema
-let table = CarTable::new_with_local_config("test", "http://localhost:8000", "us-west-2");
+let client = HighLevelClient::new_with_local_config("http://localhost:8000", "us-west-2");
+let table = CarTable::new_with_local_config(&client, "test");
 table.create(false).await.expect("Failed to create");
 ```
 
@@ -72,9 +73,9 @@ use aymond::prelude::*;
 
 #[aymond(item, table)]
 struct Car {
-    #[hash_key]
+    #[aymond(hash_key)]
     make: String,
-    #[sort_key]
+    #[aymond(sort_key)]
     model: String,
     hp: i16,
     variants: Vec<String>,
@@ -84,14 +85,15 @@ struct Car {
 #[aymond(nested_item)]
 struct Production {
     began: i32,
-    #[attribute(name = "units_produced")]
+    #[aymond(attribute(name = "units_produced"))]
     units: i64,
 }
 
 #[tokio::main]
 async fn main() {
     // Create a table in local DynamoDB, based on our item schema
-    let table = CarTable::new_with_local_config("test", "http://localhost:8000", "us-west-2");
+    let client = HighLevelClient::new_with_local_config("http://localhost:8000", "us-west-2");
+    let table = CarTable::new_with_local_config(&client, "test");
     table.create(false).await.expect("Failed to create");
 
     // Write
@@ -119,14 +121,14 @@ async fn main() {
 ```
 </details>
 
-## Not (yet) implemented
+## Planned features
 
-- Query operation with fluent builder pattern
-- Update operation with fluent builder pattern
-- Global/local indices
-- Optimistic locking with version attribute
-- Transaction system, including cross-table
-- Projections
+- [x] Query operation with fluent builder pattern
+- [ ] Update operation with fluent builder pattern
+- [x] Global/local indices
+- [ ] Optimistic locking with version attribute
+- [x] Transaction system, including cross-table
+- [ ] Projections
 
 ## Development
 
@@ -139,5 +141,5 @@ container run --name dynamodb-local -d -p 8000:8000 amazon/dynamodb-local
 The integration tests can be ran with:
 
 ```bash
-cargo run -p aymond-test
+cargo test -p aymond-test
 ```
