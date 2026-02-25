@@ -6,6 +6,7 @@ use crate::{
     ItemDefinition,
     batch_get_item::create_batch_get_builder,
     batch_write_item::create_batch_write_builder,
+    condition::create_condition_builder,
     create_scan_builder,
     create_table::create_create_method,
     delete_item::create_delete_builder,
@@ -32,6 +33,7 @@ pub fn create_table(item: &ItemDefinition) -> TokenStream {
 
     let get_item = create_get_builder(item);
     let put_item = create_put_item_builder(item);
+    let condition = create_condition_builder(item);
     let query = create_main_query_builder(item);
     let query_index = create_index_query_builders(item);
     let scan = create_scan_builder(item);
@@ -43,6 +45,7 @@ pub fn create_table(item: &ItemDefinition) -> TokenStream {
     quote! {
         #get_item
         #put_item
+        #condition
         #query
         #query_index
         #scan

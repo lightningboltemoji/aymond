@@ -1,5 +1,5 @@
 use crate::definition::ItemDefinition;
-use proc_macro2::{Ident, TokenStream};
+use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{Expr, parse_quote};
 
@@ -9,11 +9,9 @@ pub fn create_put_item_builder(item: &ItemDefinition) -> TokenStream {
     let item_struct = format_ident!("{}", &item.name);
     let table_struct = format_ident!("{}Table", &item.name);
     let put_item_struct = format_ident!("{}PutItem", &item.name);
+    let condition_builder_struct = format_ident!("{}Condition", &item.name);
 
-    let (condition_builder, condition_builder_struct) = create_condition_builder(item);
     quote! {
-        #condition_builder
-
         struct #put_item_struct<'a> {
             table: &'a #table_struct,
             i: Option<#item_struct>,
@@ -98,33 +96,4 @@ pub fn create_put_item_builder(item: &ItemDefinition) -> TokenStream {
             }
         }
     }
-}
-
-fn create_condition_builder(item: &ItemDefinition) -> (TokenStream, Ident) {
-    let ident = format_ident!("{}Condition", &item.name);
-
-    let accessors: Vec<TokenStream> = item
-        .all_attributes()
-        .map(|attr| {
-            let fn_name = &attr.field;
-            let ddb_name = &attr.ddb_name;
-            let return_type = attr.condition_path_type();
-            quote! {
-                pub fn #fn_name(&self) -> #return_type {
-                    ::aymond::condition::ConditionPathRoot::with_prefix(
-                        vec![::aymond::condition::PathSegment::Attr(#ddb_name.to_string())]
-                    )
-                }
-            }
-        })
-        .collect();
-
-    let imp = quote! {
-        pub struct #ident;
-
-        impl #ident {
-            #( #accessors )*
-        }
-    };
-    (imp, ident)
 }

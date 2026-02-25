@@ -180,6 +180,7 @@ pub fn create_query_builder(
         });
 
         let mut comparisons = vec![
+            ("eq", "#hk = :hk AND #sk = :b", vec![quote! {b}]),
             ("gt", "#hk = :hk AND #sk > :b", vec![quote! {b}]),
             ("ge", "#hk = :hk AND #sk >= :b", vec![quote! {b}]),
             ("lt", "#hk = :hk AND #sk < :b", vec![quote! {b}]),
