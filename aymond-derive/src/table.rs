@@ -59,7 +59,7 @@ pub fn create_table(item: &ItemDefinition) -> TokenStream {
         impl<'a> Table<'a, #name, #get_item_struct<'a>, #get_item_hash_key_struct<'a>, #put_item_struct<'a>, #query_struct<'a>, #query_hash_key_struct<'a>, #scan_struct<'a>, #batch_get_struct<'a>, #delete_item_struct<'a>, #delete_item_hash_key_struct<'a>, #batch_write_struct<'a>> for #table_struct {
 
             fn new(
-                client: &'a ::aymond::HighLevelClient,
+                client: &'a ::aymond::Aymond,
                 table_name: impl ::core::convert::Into<String>,
             ) -> Self {
                 Self {

@@ -1,6 +1,6 @@
 #[tokio::test]
 async fn test_delete_with_sort_key() {
-    use aymond::{HighLevelClient, prelude::*};
+    use aymond::{Aymond, prelude::*};
 
     #[aymond(item, table)]
     struct Car {
@@ -11,8 +11,8 @@ async fn test_delete_with_sort_key() {
         hp: i16,
     }
 
-    let client = HighLevelClient::new_with_local_config("http://localhost:8000", "us-west-2");
-    let table = CarTable::new(&client, "delete_item_sort_key");
+    let aymond = Aymond::new_with_local_config("http://localhost:8000", "us-west-2");
+    let table = CarTable::new(&aymond, "delete_item_sort_key");
     table.delete(false).await.expect("Failed to delete");
     table.create(false).await.expect("Failed to create");
 
@@ -55,7 +55,7 @@ async fn test_delete_with_sort_key() {
 
 #[tokio::test]
 async fn test_delete_no_sort_key() {
-    use aymond::{HighLevelClient, prelude::*};
+    use aymond::{Aymond, prelude::*};
 
     #[aymond(item, table)]
     struct Widget {
@@ -64,8 +64,8 @@ async fn test_delete_no_sort_key() {
         name: String,
     }
 
-    let client = HighLevelClient::new_with_local_config("http://localhost:8000", "us-west-2");
-    let table = WidgetTable::new(&client, "delete_item_no_sort_key");
+    let aymond = Aymond::new_with_local_config("http://localhost:8000", "us-west-2");
+    let table = WidgetTable::new(&aymond, "delete_item_no_sort_key");
     table.delete(false).await.expect("Failed to delete");
     table.create(false).await.expect("Failed to create");
 
@@ -94,7 +94,7 @@ async fn test_delete_no_sort_key() {
 
 #[tokio::test]
 async fn test_delete_with_condition() {
-    use aymond::{HighLevelClient, prelude::*};
+    use aymond::{Aymond, prelude::*};
 
     #[aymond(item, table)]
     struct Car {
@@ -105,8 +105,8 @@ async fn test_delete_with_condition() {
         hp: i16,
     }
 
-    let client = HighLevelClient::new_with_local_config("http://localhost:8000", "us-west-2");
-    let table = CarTable::new(&client, "delete_item_condition");
+    let aymond = Aymond::new_with_local_config("http://localhost:8000", "us-west-2");
+    let table = CarTable::new(&aymond, "delete_item_condition");
     table.delete(false).await.expect("Failed to delete");
     table.create(false).await.expect("Failed to create");
 
@@ -163,7 +163,7 @@ async fn test_delete_with_condition() {
 
 #[tokio::test]
 async fn test_delete_nonexistent_item() {
-    use aymond::{HighLevelClient, prelude::*};
+    use aymond::{Aymond, prelude::*};
 
     #[aymond(item, table)]
     struct Car {
@@ -174,8 +174,8 @@ async fn test_delete_nonexistent_item() {
         hp: i16,
     }
 
-    let client = HighLevelClient::new_with_local_config("http://localhost:8000", "us-west-2");
-    let table = CarTable::new(&client, "delete_item_nonexistent");
+    let aymond = Aymond::new_with_local_config("http://localhost:8000", "us-west-2");
+    let table = CarTable::new(&aymond, "delete_item_nonexistent");
     table.delete(false).await.expect("Failed to delete");
     table.create(false).await.expect("Failed to create");
 
@@ -191,7 +191,7 @@ async fn test_delete_nonexistent_item() {
 
 #[tokio::test]
 async fn test_delete_in_transaction() {
-    use aymond::{HighLevelClient, prelude::*};
+    use aymond::{Aymond, prelude::*};
 
     #[aymond(item, table)]
     struct Car {
@@ -202,8 +202,8 @@ async fn test_delete_in_transaction() {
         hp: i16,
     }
 
-    let client = HighLevelClient::new_with_local_config("http://localhost:8000", "us-west-2");
-    let table = CarTable::new(&client, "delete_item_tx");
+    let aymond = Aymond::new_with_local_config("http://localhost:8000", "us-west-2");
+    let table = CarTable::new(&aymond, "delete_item_tx");
     table.delete(false).await.expect("Failed to delete");
     table.create(false).await.expect("Failed to create");
 
@@ -220,7 +220,7 @@ async fn test_delete_in_transaction() {
     };
     let put1 = table.put().item(car1);
     let put2 = table.put().item(car2);
-    client.tx().put(put1).put(put2).send().await.unwrap();
+    aymond.tx().put(put1).put(put2).send().await.unwrap();
 
     // Verify both exist
     let get1 = table
@@ -243,7 +243,7 @@ async fn test_delete_in_transaction() {
     // Delete both in a transaction
     let del1 = table.delete_item().make("Porsche").model("911");
     let del2 = table.delete_item().make("Porsche").model("Cayenne");
-    client.tx().delete(del1).delete(del2).send().await.unwrap();
+    aymond.tx().delete(del1).delete(del2).send().await.unwrap();
 
     // Verify both are gone
     let get1 = table
@@ -266,7 +266,7 @@ async fn test_delete_in_transaction() {
 
 #[tokio::test]
 async fn test_mixed_put_delete_transaction() {
-    use aymond::{HighLevelClient, prelude::*};
+    use aymond::{Aymond, prelude::*};
 
     #[aymond(item, table)]
     struct Car {
@@ -277,8 +277,8 @@ async fn test_mixed_put_delete_transaction() {
         hp: i16,
     }
 
-    let client = HighLevelClient::new_with_local_config("http://localhost:8000", "us-west-2");
-    let table = CarTable::new(&client, "delete_item_mixed_tx");
+    let aymond = Aymond::new_with_local_config("http://localhost:8000", "us-west-2");
+    let table = CarTable::new(&aymond, "delete_item_mixed_tx");
     table.delete(false).await.expect("Failed to delete");
     table.create(false).await.expect("Failed to create");
 
@@ -298,7 +298,7 @@ async fn test_mixed_put_delete_transaction() {
         hp: 473,
     };
     let put = table.put().item(new_car);
-    client.tx().delete(del).put(put).send().await.unwrap();
+    aymond.tx().delete(del).put(put).send().await.unwrap();
 
     // Old item gone
     let get = table

@@ -32,8 +32,8 @@ Interacting with the table is done through a `Table` instance:
 
 ```rust
 // Create a table in local DynamoDB, based on our item schema
-let client = HighLevelClient::new_with_local_config("http://localhost:8000", "us-west-2");
-let table = CarTable::new_with_local_config(&client, "test");
+let aymond = Aymond::new_with_local_config("http://localhost:8000", "us-west-2");
+let table = CarTable::new_with_local_config(&aymond, "test");
 table.create(false).await.expect("Failed to create");
 ```
 
@@ -92,8 +92,8 @@ struct Production {
 #[tokio::main]
 async fn main() {
     // Create a table in local DynamoDB, based on our item schema
-    let client = HighLevelClient::new_with_local_config("http://localhost:8000", "us-west-2");
-    let table = CarTable::new_with_local_config(&client, "test");
+    let aymond = Aymond::new_with_local_config("http://localhost:8000", "us-west-2");
+    let table = CarTable::new_with_local_config(&aymond, "test");
     table.create(false).await.expect("Failed to create");
 
     // Write

@@ -1,6 +1,6 @@
 #[tokio::test]
 async fn test_batch_get_with_sort_key() {
-    use aymond::{HighLevelClient, prelude::*};
+    use aymond::{Aymond, prelude::*};
 
     #[aymond(item, table)]
     struct Car {
@@ -11,8 +11,8 @@ async fn test_batch_get_with_sort_key() {
         hp: i16,
     }
 
-    let client = HighLevelClient::new_with_local_config("http://localhost:8000", "us-west-2");
-    let table = CarTable::new(&client, "batch_get_sort");
+    let aymond = Aymond::new_with_local_config("http://localhost:8000", "us-west-2");
+    let table = CarTable::new(&aymond, "batch_get_sort");
     table.delete(false).await.expect("Failed to delete");
     table.create(false).await.expect("Failed to create");
 
@@ -73,7 +73,7 @@ async fn test_batch_get_with_sort_key() {
 
 #[tokio::test]
 async fn test_batch_get_no_sort_key() {
-    use aymond::{HighLevelClient, prelude::*};
+    use aymond::{Aymond, prelude::*};
 
     #[aymond(item, table)]
     struct Maker {
@@ -82,8 +82,8 @@ async fn test_batch_get_no_sort_key() {
         country: String,
     }
 
-    let client = HighLevelClient::new_with_local_config("http://localhost:8000", "us-west-2");
-    let table = MakerTable::new(&client, "batch_get_no_sort");
+    let aymond = Aymond::new_with_local_config("http://localhost:8000", "us-west-2");
+    let table = MakerTable::new(&aymond, "batch_get_no_sort");
     table.delete(false).await.expect("Failed to delete");
     table.create(false).await.expect("Failed to create");
 

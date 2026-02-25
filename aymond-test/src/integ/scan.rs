@@ -1,6 +1,6 @@
 #[tokio::test]
 async fn test() {
-    use aymond::{HighLevelClient, prelude::*, shim::futures::StreamExt};
+    use aymond::{Aymond, prelude::*, shim::futures::StreamExt};
 
     #[aymond(item, table)]
     #[derive(Clone)]
@@ -10,8 +10,8 @@ async fn test() {
         value: i32,
     }
 
-    let client = HighLevelClient::new_with_local_config("http://localhost:8000", "us-west-2");
-    let table = WidgetTable::new(&client, "scan");
+    let aymond = Aymond::new_with_local_config("http://localhost:8000", "us-west-2");
+    let table = WidgetTable::new(&aymond, "scan");
     table.delete(false).await.expect("Failed to delete");
     table.create(false).await.expect("Failed to create");
 

@@ -1,4 +1,4 @@
-use aymond::{HighLevelClient, prelude::*};
+use aymond::{Aymond, prelude::*};
 
 mod integ;
 
@@ -13,7 +13,7 @@ struct Cell {
 
 #[tokio::main]
 async fn main() {
-    let client = HighLevelClient::new_with_local_config("http://localhost:8000", "us-west-2");
+    let client = Aymond::new_with_local_config("http://localhost:8000", "us-west-2");
     let table = CellTable::new(&client, "numeric_keys");
     table.delete(false).await.expect("Failed to delete");
     table.create(false).await.expect("Failed to create");

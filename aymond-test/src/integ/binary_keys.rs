@@ -1,6 +1,6 @@
 #[tokio::test]
 async fn test() {
-    use aymond::{HighLevelClient, prelude::*, shim::futures::StreamExt};
+    use aymond::{Aymond, prelude::*, shim::futures::StreamExt};
 
     #[aymond(item, table)]
     struct Chunk {
@@ -10,8 +10,8 @@ async fn test() {
         range: Vec<u8>,
     }
 
-    let client = HighLevelClient::new_with_local_config("http://localhost:8000", "us-west-2");
-    let table = ChunkTable::new(&client, "binary_keys");
+    let aymond = Aymond::new_with_local_config("http://localhost:8000", "us-west-2");
+    let table = ChunkTable::new(&aymond, "binary_keys");
     table.delete(false).await.expect("Failed to delete");
     table.create(false).await.expect("Failed to create");
 

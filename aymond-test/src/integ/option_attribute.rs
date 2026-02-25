@@ -1,6 +1,6 @@
 #[tokio::test]
 async fn test() {
-    use aymond::{HighLevelClient, prelude::*};
+    use aymond::{Aymond, prelude::*};
 
     #[aymond(item, table)]
     struct Cell {
@@ -11,8 +11,8 @@ async fn test() {
         label: Option<String>,
     }
 
-    let client = HighLevelClient::new_with_local_config("http://localhost:8000", "us-west-2");
-    let table = CellTable::new(&client, "option_attribute");
+    let aymond = Aymond::new_with_local_config("http://localhost:8000", "us-west-2");
+    let table = CellTable::new(&aymond, "option_attribute");
     table.delete(false).await.expect("Failed to delete");
     table.create(false).await.expect("Failed to create");
 

@@ -6,7 +6,7 @@ use aws_sdk_dynamodb::{
 };
 use std::collections::HashMap;
 
-use crate::HighLevelClient;
+use crate::Aymond;
 
 pub trait NestedItem:
     for<'a> From<&'a HashMap<String, AttributeValue>> + Into<HashMap<String, AttributeValue>>
@@ -26,7 +26,7 @@ where
     GHK: 'a,
     DHK: 'a,
 {
-    fn new(client: &'a HighLevelClient, table_name: impl Into<String>) -> Self;
+    fn new(client: &'a Aymond, table_name: impl Into<String>) -> Self;
 
     fn create(
         &self,

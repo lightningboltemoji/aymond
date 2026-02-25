@@ -1,6 +1,6 @@
 #[tokio::test]
 async fn test() {
-    use aymond::{HighLevelClient, prelude::*};
+    use aymond::{Aymond, prelude::*};
     use std::collections::HashSet;
 
     #[aymond(item, table)]
@@ -12,8 +12,8 @@ async fn test() {
         extra: Option<HashSet<String>>,
     }
 
-    let client = HighLevelClient::new_with_local_config("http://localhost:8000", "us-west-2");
-    let table = TagTable::new(&client, "set_attribute");
+    let aymond = Aymond::new_with_local_config("http://localhost:8000", "us-west-2");
+    let table = TagTable::new(&aymond, "set_attribute");
     table.delete(false).await.expect("Failed to delete");
     table.create(false).await.expect("Failed to create");
 

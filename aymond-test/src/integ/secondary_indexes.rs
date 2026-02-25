@@ -1,6 +1,6 @@
 #[tokio::test]
 async fn test_create_with_secondary_indexes() {
-    use aymond::{HighLevelClient, prelude::*};
+    use aymond::{Aymond, prelude::*};
 
     #[aymond(item, table)]
     struct Order {
@@ -18,8 +18,8 @@ async fn test_create_with_secondary_indexes() {
         amount: i64,
     }
 
-    let client = HighLevelClient::new_with_local_config("http://localhost:8000", "us-west-2");
-    let table = OrderTable::new(&client, "secondary-indexes-test");
+    let aymond = Aymond::new_with_local_config("http://localhost:8000", "us-west-2");
+    let table = OrderTable::new(&aymond, "secondary-indexes-test");
     table.delete(false).await.expect("Failed to delete");
     table
         .create(false)
@@ -29,7 +29,7 @@ async fn test_create_with_secondary_indexes() {
 
 #[tokio::test]
 async fn test_query_gsi() {
-    use aymond::{HighLevelClient, prelude::*, shim::futures::StreamExt};
+    use aymond::{Aymond, prelude::*, shim::futures::StreamExt};
 
     #[aymond(item, table)]
     struct Order {
@@ -47,8 +47,8 @@ async fn test_query_gsi() {
         amount: i64,
     }
 
-    let client = HighLevelClient::new_with_local_config("http://localhost:8000", "us-west-2");
-    let table = OrderTable::new(&client, "gsi-query-test");
+    let aymond = Aymond::new_with_local_config("http://localhost:8000", "us-west-2");
+    let table = OrderTable::new(&aymond, "gsi-query-test");
     table.delete(false).await.expect("Failed to delete");
     table.create(false).await.expect("Failed to create");
 
@@ -109,7 +109,7 @@ async fn test_query_gsi() {
 
 #[tokio::test]
 async fn test_query_lsi() {
-    use aymond::{HighLevelClient, prelude::*, shim::futures::StreamExt};
+    use aymond::{Aymond, prelude::*, shim::futures::StreamExt};
 
     #[aymond(item, table)]
     struct Order {
@@ -127,8 +127,8 @@ async fn test_query_lsi() {
         amount: i64,
     }
 
-    let client = HighLevelClient::new_with_local_config("http://localhost:8000", "us-west-2");
-    let table = OrderTable::new(&client, "lsi-query-test");
+    let aymond = Aymond::new_with_local_config("http://localhost:8000", "us-west-2");
+    let table = OrderTable::new(&aymond, "lsi-query-test");
     table.delete(false).await.expect("Failed to delete");
     table.create(false).await.expect("Failed to create");
 

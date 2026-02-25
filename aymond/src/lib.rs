@@ -15,16 +15,16 @@ pub mod shim;
 pub mod traits;
 
 pub struct Tx<'a> {
-    client: &'a HighLevelClient,
+    client: &'a Aymond,
     put: Vec<Put>,
     delete: Vec<Delete>,
 }
 
-pub struct HighLevelClient {
+pub struct Aymond {
     pub client: Arc<aws_sdk_dynamodb::Client>,
 }
 
-impl<'a> HighLevelClient {
+impl<'a> Aymond {
     pub fn new_with_local_config(
         endpoint_url: impl Into<String>,
         region_name: impl Into<String>,
