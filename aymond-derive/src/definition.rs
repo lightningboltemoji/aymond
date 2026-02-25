@@ -330,11 +330,13 @@ impl ItemDefinition {
             let item_attribute = ItemAttribute::new(field.ident.clone().unwrap(), attr_name, ty);
 
             for (idx_name, role) in gsi_entries {
-                let def = gsis.entry(idx_name.clone()).or_insert_with(|| GsiDefinition {
-                    name: idx_name.clone(),
-                    hash_key: None,
-                    sort_key: None,
-                });
+                let def = gsis
+                    .entry(idx_name.clone())
+                    .or_insert_with(|| GsiDefinition {
+                        name: idx_name.clone(),
+                        hash_key: None,
+                        sort_key: None,
+                    });
                 match role {
                     GsiRole::HashKey => def.hash_key = Some(item_attribute.clone()),
                     GsiRole::SortKey => def.sort_key = Some(item_attribute.clone()),

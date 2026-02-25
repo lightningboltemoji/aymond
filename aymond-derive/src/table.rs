@@ -3,16 +3,21 @@ use quote::{format_ident, quote};
 use syn::{Expr, parse_quote};
 
 use crate::{
-    ItemDefinition, batch_get_item::create_batch_get_builder,
-    batch_write_item::create_batch_write_builder, create_query_builder, create_scan_builder,
-    create_table::create_create_method, delete_item::create_delete_builder,
-    get_item::create_get_builder, put_item::create_put_item_builder,
+    ItemDefinition,
+    batch_get_item::create_batch_get_builder,
+    batch_write_item::create_batch_write_builder,
+    create_scan_builder,
+    create_table::create_create_method,
+    delete_item::create_delete_builder,
+    get_item::create_get_builder,
+    put_item::create_put_item_builder,
+    query::{create_index_query_builders, create_main_query_builder},
 };
 
-pub fn create_table(def: &ItemDefinition) -> TokenStream {
+pub fn create_table(item: &ItemDefinition) -> TokenStream {
     let aws_sdk_dynamodb: Expr = parse_quote!(::aymond::shim::aws_sdk_dynamodb);
 
-    let name = format_ident!("{}", &def.name);
+    let name = format_ident!("{}", &item.name);
     let table_struct = format_ident!("{}Table", &name);
     let get_item_struct = format_ident!("{}GetItem", &name);
     let get_item_hash_key_struct = format_ident!("{}GetItemHashKey", &name);
@@ -25,18 +30,21 @@ pub fn create_table(def: &ItemDefinition) -> TokenStream {
     let delete_item_hash_key_struct = format_ident!("{}DeleteItemHashKey", &name);
     let batch_write_struct = format_ident!("{}BatchWriteItem", &name);
 
-    let get_item = create_get_builder(def);
-    let put_item = create_put_item_builder(def);
-    let query = create_query_builder(def);
-    let scan = create_scan_builder(def);
-    let batch_get = create_batch_get_builder(def);
-    let delete_item = create_delete_builder(def);
-    let batch_write = create_batch_write_builder(def);
-    let create_method = create_create_method(def);
+    let get_item = create_get_builder(item);
+    let put_item = create_put_item_builder(item);
+    let query = create_main_query_builder(item);
+    let query_index = create_index_query_builders(item);
+    let scan = create_scan_builder(item);
+    let batch_get = create_batch_get_builder(item);
+    let delete_item = create_delete_builder(item);
+    let batch_write = create_batch_write_builder(item);
+    let create_method = create_create_method(item);
+
     quote! {
         #get_item
         #put_item
         #query
+        #query_index
         #scan
         #batch_get
         #delete_item

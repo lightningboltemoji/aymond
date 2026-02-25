@@ -6,7 +6,6 @@ use crate::{
     definition::{ItemAttribute, ItemDefinition},
     item::create_item,
     nested_item::create_nested_item,
-    query::create_query_builder,
     scan::create_scan_builder,
     table::create_table,
 };
@@ -24,6 +23,7 @@ mod put_item;
 mod query;
 mod scan;
 mod table;
+mod util;
 
 #[proc_macro_attribute]
 pub fn aymond(args: TokenStream, input: TokenStream) -> TokenStream {

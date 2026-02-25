@@ -1,33 +1,121 @@
-use crate::definition::ItemDefinition;
+use crate::{
+    definition::{ItemAttribute, ItemDefinition},
+    util::{to_ident_format, to_pascal_case},
+};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{Expr, parse_quote};
 
-pub fn create_query_builder(item: &ItemDefinition) -> TokenStream {
+pub fn create_main_query_builder(item: &ItemDefinition) -> TokenStream {
+    let hash_key = item.hash_key.as_ref().unwrap();
+    let sort_key = item.sort_key.as_ref();
+    create_query_builder(&item.name, &item.name, hash_key, sort_key, None)
+}
+
+pub fn create_index_query_builders(item: &ItemDefinition) -> TokenStream {
+    let table_struct = format_ident!("{}Table", &item.name);
+
+    let mut chunks: Vec<TokenStream> = vec![];
+
+    // GSIs sorted by name for deterministic output
+    let mut gsis: Vec<_> = item.global_secondary_indexes.values().collect();
+    gsis.sort_by_key(|g| &g.name);
+
+    for gsi in &gsis {
+        let gsi_hash_key = gsi.hash_key.as_ref().unwrap();
+        let normalized = to_ident_format(&gsi.name);
+        let pascal = to_pascal_case(&normalized);
+        let prefix = format!("{}Index{}", item.name, pascal);
+        let index_hk_struct = format_ident!("{}QueryHashKey", prefix);
+
+        let builder = create_query_builder(
+            &item.name,
+            &prefix,
+            gsi_hash_key,
+            gsi.sort_key.as_ref(),
+            Some(&gsi.name),
+        );
+        chunks.push(builder);
+
+        let index_query_struct = format_ident!("{}Query", prefix);
+        let method_name = format_ident!("query_{}", normalized);
+        chunks.push(quote! {
+            impl<'a> #table_struct {
+                fn #method_name(&'a self) -> #index_hk_struct<'a> {
+                    #index_query_struct::new(self)
+                }
+            }
+        });
+    }
+
+    // LSIs sorted by name for deterministic output
+    let mut lsis: Vec<_> = item.local_secondary_indexes.values().collect();
+    lsis.sort_by_key(|l| &l.name);
+
+    for lsi in &lsis {
+        let table_hash_key = item.hash_key.as_ref().unwrap();
+        let normalized = to_ident_format(&lsi.name);
+        let pascal = to_pascal_case(&normalized);
+        let prefix = format!("{}Index{}", item.name, pascal);
+        let index_hk_struct = format_ident!("{}QueryHashKey", prefix);
+        let index_query_struct = format_ident!("{}Query", prefix);
+
+        let builder = create_query_builder(
+            &item.name,
+            &prefix,
+            table_hash_key,
+            Some(&lsi.sort_key),
+            Some(&lsi.name),
+        );
+        chunks.push(builder);
+
+        let method_name = format_ident!("query_{}", normalized);
+        chunks.push(quote! {
+            impl<'a> #table_struct {
+                fn #method_name(&'a self) -> #index_hk_struct<'a> {
+                    #index_query_struct::new(self)
+                }
+            }
+        });
+    }
+
+    quote! { #( #chunks )* }
+}
+
+pub fn create_query_builder(
+    item_name: &str,
+    prefix: &str,
+    hash_key: &ItemAttribute,
+    sort_key: Option<&ItemAttribute>,
+    index_name: Option<&str>,
+) -> TokenStream {
     let aws_sdk_dynamodb: Expr = parse_quote!(::aymond::shim::aws_sdk_dynamodb);
 
-    let item_struct = format_ident!("{}", &item.name);
-    let table_struct = format_ident!("{}Table", &item.name);
-    let query_struct = format_ident!("{}Query", &item.name);
-    let hash_key_struct = format_ident!("{}QueryHashKey", &item.name);
+    let item_struct = format_ident!("{}", item_name);
+    let table_struct = format_ident!("{}Table", item_name);
+    let query_struct = format_ident!("{}Query", prefix);
+    let hash_key_struct = format_ident!("{}QueryHashKey", prefix);
 
-    let hash_key = item.hash_key.as_ref().unwrap();
     let hash_key_attr_name = &hash_key.ddb_name;
     let hash_key_ident = &hash_key.field;
     let hash_key_typ = &hash_key.ty;
     let hash_key_boxer = hash_key.to_attribute_value(&parse_quote!(self.hk.unwrap()));
 
+    let index_name_init = match index_name {
+        Some(name) => quote! { Some(#name.to_string()) },
+        None => quote! { None },
+    };
+
     let mut chunks: Vec<TokenStream> = vec![];
 
-    if item.sort_key.is_some() {
-        let sort_key_struct = format_ident!("{}QuerySortKey", &item.name);
-        let sort_key_ident = &item.sort_key.as_ref().unwrap().field;
-        let sort_key_attr_name = &item.sort_key.as_ref().unwrap().ddb_name;
-        let sort_key_typ = &item.sort_key.as_ref().unwrap().ty;
+    if let Some(sort_key_attr) = sort_key {
+        let sort_key_struct = format_ident!("{}QuerySortKey", prefix);
+        let sort_key_ident = &sort_key_attr.field;
+        let sort_key_attr_name = &sort_key_attr.ddb_name;
+        let sort_key_typ = &sort_key_attr.ty;
 
-        let sort_key = item.sort_key.as_ref().unwrap();
-        let sort_key_b_boxer = sort_key.to_attribute_value(&parse_quote!(self.b.unwrap()));
-        let sort_key_c_boxer = sort_key.to_attribute_value(&parse_quote!(self.c.unwrap()));
+        let sort_key_b_boxer = sort_key_attr.to_attribute_value(&parse_quote!(self.b.unwrap()));
+        let sort_key_c_boxer = sort_key_attr.to_attribute_value(&parse_quote!(self.c.unwrap()));
 
         chunks.push(quote! {
             struct #hash_key_struct<'a> {
@@ -36,6 +124,7 @@ pub fn create_query_builder(item: &ItemDefinition) -> TokenStream {
 
             struct #query_struct<'a> {
                 table: &'a #table_struct,
+                index_name: Option<String>,
                 hk: Option<#hash_key_typ>,
                 qs: Option<String>,
                 b: Option<#sort_key_typ>,
@@ -44,7 +133,7 @@ pub fn create_query_builder(item: &ItemDefinition) -> TokenStream {
 
             impl<'a> #query_struct<'a> {
                 fn new(table: &'a #table_struct) -> #hash_key_struct<'a> {
-                    let q = #query_struct { table, hk: None, qs: None, b: None, c: None };
+                    let q = #query_struct { table, index_name: #index_name_init, hk: None, qs: None, b: None, c: None };
                     #hash_key_struct { q }
                 }
             }
@@ -101,7 +190,7 @@ pub fn create_query_builder(item: &ItemDefinition) -> TokenStream {
                 vec![quote! {b}, quote! {c}],
             ),
         ];
-        let sk_hier = &item.sort_key.as_ref().unwrap().generics_hierarchy;
+        let sk_hier = &sort_key_attr.generics_hierarchy;
         let sk_supports_begins_with = match sk_hier.as_slice() {
             [t] => t == "String",
             [v, u] => v == "Vec" && u == "u8",
@@ -135,13 +224,14 @@ pub fn create_query_builder(item: &ItemDefinition) -> TokenStream {
 
             struct #query_struct<'a> {
                 table: &'a #table_struct,
+                index_name: Option<String>,
                 hk: Option<#hash_key_typ>,
                 qs: Option<String>,
             }
 
             impl<'a> #query_struct<'a> {
                 fn new(table: &'a #table_struct) -> #hash_key_struct {
-                    let q = #query_struct { table, hk: None, qs: None };
+                    let q = #query_struct { table, index_name: #index_name_init, hk: None, qs: None };
                     #hash_key_struct { q }
                 }
             }
@@ -187,11 +277,13 @@ pub fn create_query_builder(item: &ItemDefinition) -> TokenStream {
                 #aws_sdk_dynamodb::config::http::HttpResponse
             >>> + 'a
             {
+                let index_name = self.index_name.clone();
                 let query = self.table.client.query();
                 let table_name = &self.table.table_name;
                 let (key_expr, attr_names, attr_values) = self.into();
                 let pagination = query
                     .table_name(table_name)
+                    .set_index_name(index_name.clone())
                     .set_key_condition_expression(Some(key_expr))
                     .set_expression_attribute_names(Some(attr_names))
                     .set_expression_attribute_values(Some(attr_values))
@@ -217,11 +309,13 @@ pub fn create_query_builder(item: &ItemDefinition) -> TokenStream {
                 F: FnOnce(#aws_sdk_dynamodb::operation::query::builders::QueryFluentBuilder)
                 -> #aws_sdk_dynamodb::operation::query::builders::QueryFluentBuilder
             {
+                let index_name = self.index_name.clone();
                 let query = f(self.table.client.query());
                 let table_name = &self.table.table_name;
                 let (key_expr, attr_names, attr_values) = self.into();
                 query
                     .table_name(table_name)
+                    .set_index_name(index_name.clone())
                     .set_key_condition_expression(Some(key_expr))
                     .set_expression_attribute_names(Some(attr_names))
                     .set_expression_attribute_values(Some(attr_values))
