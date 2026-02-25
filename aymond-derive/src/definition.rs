@@ -3,7 +3,7 @@ use quote::{ToTokens, format_ident};
 use std::collections::HashMap;
 use syn::{
     Data, DeriveInput, Expr, Fields, GenericArgument, Ident, Lit, LitStr, Meta, MetaList,
-    MetaNameValue, Path, PathArguments, Token, Type, parse_quote, punctuated::Punctuated,
+    Path, PathArguments, Token, Type, parse_quote, punctuated::Punctuated,
 };
 
 #[derive(Clone)]
@@ -38,6 +38,7 @@ pub struct ItemDefinition {
     pub other_attributes: Vec<ItemAttribute>,
     pub global_secondary_indexes: HashMap<String, GsiDefinition>,
     pub local_secondary_indexes: HashMap<String, LsiDefinition>,
+    pub version_attribute: Option<ItemAttribute>,
 }
 
 impl ItemAttribute {
@@ -267,6 +268,7 @@ impl ItemDefinition {
         let mut other_attributes = vec![];
         let mut gsis: HashMap<String, GsiDefinition> = HashMap::new();
         let mut lsis: HashMap<String, LsiDefinition> = HashMap::new();
+        let mut version_attribute = None;
 
         for field in &mut fields_named.named {
             let aymond_attrs: Vec<_> = field
@@ -278,6 +280,7 @@ impl ItemDefinition {
             let mut is_hash = false;
             let mut is_sort = false;
             let mut custom_name = None;
+            let mut is_version = false;
             let mut gsi_entries: Vec<(String, GsiRole)> = vec![];
             let mut lsi_entries: Vec<String> = vec![];
 
@@ -297,7 +300,9 @@ impl ItemDefinition {
                         custom_name = Self::extract_attribute_name(list);
                     }
                     Meta::List(list) if list.path.is_ident("attribute") => {
-                        custom_name = Self::extract_attribute_name(list);
+                        let (name, version) = Self::extract_attribute_args(list);
+                        custom_name = name;
+                        is_version = version;
                     }
                     Meta::List(list)
                         if list.path.is_ident("global_secondary_index")
@@ -352,6 +357,22 @@ impl ItemDefinition {
                 );
             }
 
+            if is_version {
+                let numeric_types = [
+                    "i8", "i16", "i32", "i64", "i128", "u8", "u16", "u32", "u64", "u128",
+                ];
+                if !numeric_types.contains(&item_attribute.generics_hierarchy[0].as_str()) {
+                    panic!("#[aymond(attribute(version))] field must be a numeric type");
+                }
+                if item_attribute.is_option {
+                    panic!("#[aymond(attribute(version))] field cannot be Option");
+                }
+                if version_attribute.is_some() {
+                    panic!("Multiple attributes with #[aymond(attribute(version))]");
+                }
+                version_attribute = Some(item_attribute.clone());
+            }
+
             if is_hash {
                 hash_key = Some(item_attribute);
             } else if is_sort {
@@ -384,6 +405,7 @@ impl ItemDefinition {
             other_attributes,
             global_secondary_indexes: gsis,
             local_secondary_indexes: lsis,
+            version_attribute,
         }
     }
 
@@ -428,18 +450,36 @@ impl ItemDefinition {
         name.value()
     }
 
-    fn extract_attribute_name(list: &MetaList) -> Option<String> {
-        list.parse_args_with(Punctuated::<MetaNameValue, Token![,]>::parse_terminated)
-            .ok()?
-            .into_iter()
-            .find_map(|nv| {
-                if nv.path.is_ident("name")
-                    && let Expr::Lit(expr_lit) = &nv.value
-                    && let Lit::Str(s) = &expr_lit.lit
-                {
-                    return Some(s.value());
+    /// Parses `attribute(...)` args, returning `(custom_name, is_version)`.
+    /// Supports: `attribute(name = "x")`, `attribute(version)`, `attribute(name = "x", version)`.
+    fn extract_attribute_args(list: &MetaList) -> (Option<String>, bool) {
+        let mut custom_name = None;
+        let mut is_version = false;
+
+        let metas = list
+            .parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)
+            .expect("Invalid #[aymond(attribute(...))] syntax");
+
+        for meta in metas {
+            match &meta {
+                Meta::NameValue(nv) if nv.path.is_ident("name") => {
+                    if let Expr::Lit(expr_lit) = &nv.value
+                        && let Lit::Str(s) = &expr_lit.lit
+                    {
+                        custom_name = Some(s.value());
+                    }
                 }
-                None
-            })
+                Meta::Path(p) if p.is_ident("version") => {
+                    is_version = true;
+                }
+                _ => panic!("Unknown attribute arg in #[aymond(attribute(...))]. Expected `name = \"...\"` or `version`"),
+            }
+        }
+
+        (custom_name, is_version)
+    }
+
+    fn extract_attribute_name(list: &MetaList) -> Option<String> {
+        Self::extract_attribute_args(list).0
     }
 }

@@ -17,6 +17,15 @@ pub fn create_delete_builder(item: &ItemDefinition) -> TokenStream {
     let hash_key_typ = &hash_key.ty;
     let hash_key_boxer = &hash_key.to_attribute_value(&parse_quote!(hk));
 
+    let item_struct = format_ident!("{}", &item.name);
+
+    let set_version_in_item = if let Some(ver_attr) = &item.version_attribute {
+        let ver_field = &ver_attr.field;
+        quote! { self.q.cond.set_version_value(v.#ver_field); }
+    } else {
+        quote! {}
+    };
+
     let (builders, build_key_map) = if item.sort_key.is_some() {
         let sort_key_struct = format_ident!("{}DeleteItemSortKey", &item.name);
         let sort_key = item.sort_key.as_ref().unwrap();
@@ -44,14 +53,12 @@ pub fn create_delete_builder(item: &ItemDefinition) -> TokenStream {
                 table: &'a #table_struct,
                 hk: Option<#hash_key_typ>,
                 sk: Option<#sort_key_typ>,
-                cond_expr: Option<String>,
-                expr_name: Option<::std::collections::HashMap<String, String>>,
-                expr_value: Option<::std::collections::HashMap<String, #aws_sdk_dynamodb::types::AttributeValue>>,
+                cond: #condition_builder_struct,
             }
 
             impl<'a> #delete_item_struct<'a> {
                 fn new(table: &'a #table_struct) -> #hash_key_struct<'a> {
-                    let q = #delete_item_struct { table, hk: None, sk: None, cond_expr: None, expr_name: None, expr_value: None };
+                    let q = #delete_item_struct { table, hk: None, sk: None, cond: #condition_builder_struct::new() };
                     #hash_key_struct { q }
                 }
             }
@@ -60,6 +67,13 @@ pub fn create_delete_builder(item: &ItemDefinition) -> TokenStream {
                 fn #hash_key_ident (mut self, v: impl Into<#hash_key_typ>) -> #sort_key_struct<'a> {
                     self.q.hk = Some(v.into());
                     #sort_key_struct { q: self.q }
+                }
+
+                fn item(mut self, v: #item_struct) -> #delete_item_struct<'a> {
+                    #set_version_in_item
+                    self.q.hk = Some(v.#hash_key_ident.into());
+                    self.q.sk = Some(v.#sort_key_ident.into());
+                    self.q
                 }
             }
 
@@ -91,14 +105,12 @@ pub fn create_delete_builder(item: &ItemDefinition) -> TokenStream {
             struct #delete_item_struct<'a> {
                 table: &'a #table_struct,
                 hk: Option<#hash_key_typ>,
-                cond_expr: Option<String>,
-                expr_name: Option<::std::collections::HashMap<String, String>>,
-                expr_value: Option<::std::collections::HashMap<String, #aws_sdk_dynamodb::types::AttributeValue>>,
+                cond: #condition_builder_struct,
             }
 
             impl<'a> #delete_item_struct<'a> {
                 fn new(table: &'a #table_struct) -> #hash_key_struct<'a> {
-                    let q = #delete_item_struct { table, hk: None, cond_expr: None, expr_name: None, expr_value: None };
+                    let q = #delete_item_struct { table, hk: None, cond: #condition_builder_struct::new() };
                     #hash_key_struct { q }
                 }
             }
@@ -106,6 +118,12 @@ pub fn create_delete_builder(item: &ItemDefinition) -> TokenStream {
             impl<'a> #hash_key_struct<'a> {
                 fn #hash_key_ident (mut self, v: impl Into<#hash_key_typ>) -> #delete_item_struct<'a> {
                     self.q.hk = Some(v.into());
+                    self.q
+                }
+
+                fn item(mut self, v: #item_struct) -> #delete_item_struct<'a> {
+                    #set_version_in_item
+                    self.q.hk = Some(v.#hash_key_ident.into());
                     self.q
                 }
             }
@@ -120,12 +138,10 @@ pub fn create_delete_builder(item: &ItemDefinition) -> TokenStream {
         impl<'a> #delete_item_struct<'a> {
             fn condition<F>(mut self, f: F) -> #delete_item_struct<'a>
             where
-                F: FnOnce(#condition_builder_struct) -> ::aymond::condition::CondExpr
+                F: FnOnce(&mut #condition_builder_struct) -> ::aymond::condition::CondExpr
             {
-                let (cond_expr, expr_name, expr_value) = f(#condition_builder_struct).build();
-                self.cond_expr = Some(cond_expr);
-                self.expr_name = Some(expr_name);
-                self.expr_value = Some(expr_value);
+                let expr = f(&mut self.cond);
+                self.cond.set_expr(expr);
                 self
             }
 
@@ -154,9 +170,7 @@ pub fn create_delete_builder(item: &ItemDefinition) -> TokenStream {
                 F: FnOnce(#aws_sdk_dynamodb::operation::delete_item::builders::DeleteItemFluentBuilder)
                 -> #aws_sdk_dynamodb::operation::delete_item::builders::DeleteItemFluentBuilder
             {
-                let cond_expr = self.cond_expr;
-                let expr_name = self.expr_name;
-                let expr_value = self.expr_value;
+                let (cond_expr, expr_name, expr_value) = self.cond.build();
                 let table_name = &self.table.table_name;
                 let client = &self.table.client;
                 #build_key_map
@@ -176,9 +190,7 @@ pub fn create_delete_builder(item: &ItemDefinition) -> TokenStream {
 
         impl<'a> Into<#aws_sdk_dynamodb::types::Delete> for #delete_item_struct<'a> {
             fn into(self) -> #aws_sdk_dynamodb::types::Delete {
-                let cond_expr = self.cond_expr;
-                let expr_name = self.expr_name;
-                let expr_value = self.expr_value;
+                let (cond_expr, expr_name, expr_value) = self.cond.build();
                 let table_name = &self.table.table_name;
                 #build_key_map
                 let mut b = #aws_sdk_dynamodb::types::Delete::builder()
