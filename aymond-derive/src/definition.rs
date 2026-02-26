@@ -2,8 +2,8 @@ use proc_macro2::TokenStream;
 use quote::{ToTokens, format_ident};
 use std::collections::HashMap;
 use syn::{
-    Data, DeriveInput, Expr, Fields, GenericArgument, Ident, Lit, LitStr, Meta, MetaList,
-    Path, PathArguments, Token, Type, parse_quote, punctuated::Punctuated,
+    Data, DeriveInput, Expr, Fields, GenericArgument, Ident, Lit, LitStr, Meta, MetaList, Path,
+    PathArguments, Token, Type, parse_quote, punctuated::Punctuated,
 };
 
 #[derive(Clone)]
@@ -249,6 +249,54 @@ impl ItemAttribute {
             [] => panic!("Empty generics_hierarchy"),
         }
     }
+
+    pub fn update_path_type(&self) -> TokenStream {
+        Self::update_path_type_from_hierarchy(&self.generics_hierarchy, 0)
+    }
+
+    fn update_path_type_from_hierarchy(hierarchy: &[String], hier: usize) -> TokenStream {
+        let upd: TokenStream = parse_quote!(::aymond::update);
+        match &hierarchy[hier..] {
+            [t, ..] if t == "Option" => Self::update_path_type_from_hierarchy(hierarchy, hier + 1),
+            [t, ..]
+                if matches!(
+                    t.as_str(),
+                    "i8" | "i16"
+                        | "i32"
+                        | "i64"
+                        | "i128"
+                        | "u8"
+                        | "u16"
+                        | "u32"
+                        | "u64"
+                        | "u128"
+                        | "bool"
+                ) =>
+            {
+                let ty: TokenStream = t.parse().unwrap();
+                parse_quote!(#upd::ScalarUpdatePath<#ty>)
+            }
+            [t, ..] if t == "String" => parse_quote!(#upd::ScalarUpdatePath<String>),
+            [v, u, ..] if v == "Vec" && u == "u8" => {
+                parse_quote!(#upd::ScalarUpdatePath<Vec<u8>>)
+            }
+            [v, ..] if v == "Vec" => {
+                let inner = Self::update_path_type_from_hierarchy(hierarchy, hier + 1);
+                parse_quote!(#upd::ListUpdatePath<#inner>)
+            }
+            [h, s, ..] if h == "HashSet" && s == "String" => {
+                parse_quote!(#upd::ScalarUpdatePath<::std::collections::HashSet<String>>)
+            }
+            [h, v, u, ..] if h == "HashSet" && v == "Vec" && u == "u8" => {
+                parse_quote!(#upd::ScalarUpdatePath<::std::collections::HashSet<Vec<u8>>>)
+            }
+            [name, ..] => {
+                let path_ident = format_ident!("{}UpdatePath", name);
+                parse_quote!(#path_ident)
+            }
+            [] => panic!("Empty generics_hierarchy"),
+        }
+    }
 }
 
 impl ItemDefinition {
@@ -472,7 +520,9 @@ impl ItemDefinition {
                 Meta::Path(p) if p.is_ident("version") => {
                     is_version = true;
                 }
-                _ => panic!("Unknown attribute arg in #[aymond(attribute(...))]. Expected `name = \"...\"` or `version`"),
+                _ => panic!(
+                    "Unknown attribute arg in #[aymond(attribute(...))]. Expected `name = \"...\"` or `version`"
+                ),
             }
         }
 

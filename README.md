@@ -124,9 +124,9 @@ async fn main() {
 ## Planned features
 
 - [x] Query operation with fluent builder pattern
-- [ ] Update operation with fluent builder pattern
+- [x] Update operation with fluent builder pattern
 - [x] Global/local indices
-- [ ] Optimistic locking with version attribute
+- [x] Optimistic locking with version attribute
 - [x] Transaction system, including cross-table
 - [ ] Projections
 

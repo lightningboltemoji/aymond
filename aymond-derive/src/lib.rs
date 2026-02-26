@@ -24,6 +24,7 @@ mod put_item;
 mod query;
 mod scan;
 mod table;
+mod update_item;
 mod util;
 
 #[proc_macro_attribute]

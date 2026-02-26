@@ -13,6 +13,7 @@ pub mod prelude {
 pub mod condition;
 pub mod shim;
 pub mod traits;
+pub mod update;
 
 pub struct Tx<'a> {
     client: &'a Aymond,

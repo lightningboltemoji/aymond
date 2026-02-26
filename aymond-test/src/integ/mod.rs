@@ -10,6 +10,7 @@ mod option_attribute;
 mod scan;
 mod secondary_indexes;
 mod set_attribute;
+mod update_item;
 mod version;
 
 #[test]

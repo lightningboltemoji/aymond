@@ -209,19 +209,34 @@ async fn test_version_delete_via_item() {
         count: 10,
         ver: 0,
     };
-    table.put().item(c).send().await.expect("put should succeed");
+    table
+        .put()
+        .item(c)
+        .send()
+        .await
+        .expect("put should succeed");
     let c = Counter {
         id: "c1".to_string(),
         count: 10,
         ver: 1,
     };
-    table.put().item(c).send().await.expect("put should succeed");
+    table
+        .put()
+        .item(c)
+        .send()
+        .await
+        .expect("put should succeed");
     let c = Counter {
         id: "c1".to_string(),
         count: 10,
         ver: 2,
     };
-    table.put().item(c).send().await.expect("put should succeed");
+    table
+        .put()
+        .item(c)
+        .send()
+        .await
+        .expect("put should succeed");
 
     // DB now has ver=3
 
