@@ -4,6 +4,7 @@ use quote::{format_ident, quote};
 
 pub fn create_condition_builder(item: &ItemDefinition) -> TokenStream {
     let ident = format_ident!("{}Condition", &item.name);
+    let fields_ident = format_ident!("{}ConditionFields", &item.name);
 
     let hash_key_ddb_name = &item.hash_key.as_ref().unwrap().ddb_name;
 
@@ -29,48 +30,51 @@ pub fn create_condition_builder(item: &ItemDefinition) -> TokenStream {
 
         quote! {
             pub struct #ident {
-                versioning: bool,
-                version_value: Option<#ver_ty>,
-                existence: ::aymond::condition::ExistenceCheck,
+                versioning: std::cell::Cell<bool>,
+                version_value: std::cell::Cell<Option<#ver_ty>>,
+                existence: std::cell::Cell<::aymond::condition::ExistenceCheck>,
                 expr: Option<::aymond::condition::CondExpr>,
+            }
+
+            pub struct #fields_ident;
+
+            impl ::aymond::condition::IntoOptionalCondExpr for #fields_ident {
+                fn into_optional_cond_expr(self) -> Option<::aymond::condition::CondExpr> {
+                    None
+                }
             }
 
             impl #ident {
                 fn new() -> Self {
                     Self {
-                        versioning: true,
-                        version_value: None,
-                        existence: ::aymond::condition::ExistenceCheck::None,
+                        versioning: std::cell::Cell::new(true),
+                        version_value: std::cell::Cell::new(None),
+                        existence: std::cell::Cell::new(::aymond::condition::ExistenceCheck::None),
                         expr: None,
                     }
                 }
 
-                pub fn enable_versioning(&mut self) -> &mut Self {
-                    self.versioning = true;
-                    self
-                }
-
-                pub fn disable_versioning(&mut self) -> &mut Self {
-                    self.versioning = false;
-                    self
+                pub fn disable_versioning(&self) -> #fields_ident {
+                    self.versioning.set(false);
+                    #fields_ident
                 }
 
                 pub fn is_versioning_enabled(&self) -> bool {
-                    self.versioning
+                    self.versioning.get()
                 }
 
-                pub fn must_exist(&mut self) -> &mut Self {
-                    self.existence = ::aymond::condition::ExistenceCheck::MustExist;
-                    self
+                pub fn must_exist(&self) -> #fields_ident {
+                    self.existence.set(::aymond::condition::ExistenceCheck::MustExist);
+                    #fields_ident
                 }
 
-                pub fn must_not_exist(&mut self) -> &mut Self {
-                    self.existence = ::aymond::condition::ExistenceCheck::MustNotExist;
-                    self
+                pub fn must_not_exist(&self) -> #fields_ident {
+                    self.existence.set(::aymond::condition::ExistenceCheck::MustNotExist);
+                    #fields_ident
                 }
 
-                fn set_version_value(&mut self, v: #ver_ty) {
-                    self.version_value = Some(v);
+                fn set_version_value(&self, v: #ver_ty) {
+                    self.version_value.set(Some(v));
                 }
 
                 fn set_expr(&mut self, expr: ::aymond::condition::CondExpr) {
@@ -86,8 +90,12 @@ pub fn create_condition_builder(item: &ItemDefinition) -> TokenStream {
                     Option<::std::collections::HashMap<String, String>>,
                     Option<::std::collections::HashMap<String, ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue>>,
                 ) {
+                    let existence = self.existence.get();
+                    let versioning = self.versioning.get();
+                    let version_value = self.version_value.get();
+
                     // Priority: explicit existence > version-zero auto > normal versioning
-                    let version_expr = match self.existence {
+                    let version_expr = match existence {
                         ::aymond::condition::ExistenceCheck::MustNotExist => {
                             Some(::aymond::condition::CondExpr::AttributeNotExists {
                                 path: vec![::aymond::condition::PathSegment::Attr(#hash_key_ddb_name.to_string())],
@@ -99,8 +107,8 @@ pub fn create_condition_builder(item: &ItemDefinition) -> TokenStream {
                             })
                         }
                         ::aymond::condition::ExistenceCheck::None => {
-                            if self.versioning {
-                                match self.version_value {
+                            if versioning {
+                                match version_value {
                                     Some(v) if v == 0 => {
                                         // Version zero: item must not exist yet
                                         Some(::aymond::condition::CondExpr::AttributeNotExists {
@@ -144,30 +152,42 @@ pub fn create_condition_builder(item: &ItemDefinition) -> TokenStream {
                     }
                 }
             }
+
+            impl #fields_ident {
+                #( #accessors )*
+            }
         }
     } else {
         quote! {
             pub struct #ident {
-                existence: ::aymond::condition::ExistenceCheck,
+                existence: std::cell::Cell<::aymond::condition::ExistenceCheck>,
                 expr: Option<::aymond::condition::CondExpr>,
+            }
+
+            pub struct #fields_ident;
+
+            impl ::aymond::condition::IntoOptionalCondExpr for #fields_ident {
+                fn into_optional_cond_expr(self) -> Option<::aymond::condition::CondExpr> {
+                    None
+                }
             }
 
             impl #ident {
                 fn new() -> Self {
                     Self {
-                        existence: ::aymond::condition::ExistenceCheck::None,
+                        existence: std::cell::Cell::new(::aymond::condition::ExistenceCheck::None),
                         expr: None,
                     }
                 }
 
-                pub fn must_exist(&mut self) -> &mut Self {
-                    self.existence = ::aymond::condition::ExistenceCheck::MustExist;
-                    self
+                pub fn must_exist(&self) -> #fields_ident {
+                    self.existence.set(::aymond::condition::ExistenceCheck::MustExist);
+                    #fields_ident
                 }
 
-                pub fn must_not_exist(&mut self) -> &mut Self {
-                    self.existence = ::aymond::condition::ExistenceCheck::MustNotExist;
-                    self
+                pub fn must_not_exist(&self) -> #fields_ident {
+                    self.existence.set(::aymond::condition::ExistenceCheck::MustNotExist);
+                    #fields_ident
                 }
 
                 fn set_expr(&mut self, expr: ::aymond::condition::CondExpr) {
@@ -183,7 +203,9 @@ pub fn create_condition_builder(item: &ItemDefinition) -> TokenStream {
                     Option<::std::collections::HashMap<String, String>>,
                     Option<::std::collections::HashMap<String, ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue>>,
                 ) {
-                    let existence_expr = match self.existence {
+                    let existence = self.existence.get();
+
+                    let existence_expr = match existence {
                         ::aymond::condition::ExistenceCheck::MustNotExist => {
                             Some(::aymond::condition::CondExpr::AttributeNotExists {
                                 path: vec![::aymond::condition::PathSegment::Attr(#hash_key_ddb_name.to_string())],
@@ -216,6 +238,10 @@ pub fn create_condition_builder(item: &ItemDefinition) -> TokenStream {
                         None => (None, None, None),
                     }
                 }
+            }
+
+            impl #fields_ident {
+                #( #accessors )*
             }
         }
     }

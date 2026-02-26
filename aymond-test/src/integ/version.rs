@@ -179,10 +179,7 @@ async fn test_version_disable_versioning() {
     table
         .put()
         .item(c)
-        .condition(|c| {
-            c.disable_versioning();
-            c.id().eq("c1")
-        })
+        .condition(|c| c.disable_versioning().id().eq("c1"))
         .send()
         .await
         .expect("Put with disable_versioning should bypass version check");
@@ -433,9 +430,7 @@ async fn test_must_not_exist_condition() {
     table
         .put()
         .item(c)
-        .condition(|c| {
-            c.must_not_exist();
-        })
+        .condition(|c| c.must_not_exist())
         .send()
         .await
         .expect("must_not_exist on empty table should succeed");
@@ -453,9 +448,7 @@ async fn test_must_not_exist_condition() {
     let result = table
         .put()
         .item(c)
-        .condition(|c| {
-            c.must_not_exist();
-        })
+        .condition(|c| c.must_not_exist())
         .send()
         .await;
     assert!(
@@ -491,9 +484,7 @@ async fn test_must_exist_condition() {
     let result = table
         .put()
         .item(c)
-        .condition(|c| {
-            c.must_exist();
-        })
+        .condition(|c| c.must_exist())
         .send()
         .await;
     assert!(
@@ -524,9 +515,7 @@ async fn test_must_exist_condition() {
     table
         .put()
         .item(c)
-        .condition(|c| {
-            c.must_exist();
-        })
+        .condition(|c| c.must_exist())
         .send()
         .await
         .expect("must_exist should succeed when item exists");
@@ -561,9 +550,7 @@ async fn test_must_not_exist_on_non_versioned_item() {
     table
         .put()
         .item(item)
-        .condition(|c| {
-            c.must_not_exist();
-        })
+        .condition(|c| c.must_not_exist())
         .send()
         .await
         .expect("must_not_exist on empty table should succeed");
@@ -576,9 +563,7 @@ async fn test_must_not_exist_on_non_versioned_item() {
     let result = table
         .put()
         .item(item)
-        .condition(|c| {
-            c.must_not_exist();
-        })
+        .condition(|c| c.must_not_exist())
         .send()
         .await;
     assert!(

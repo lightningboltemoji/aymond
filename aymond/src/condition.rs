@@ -384,6 +384,7 @@ impl BinarySetConditionPath {
 // ── ExistenceCheck ──
 
 /// Controls `attribute_exists` / `attribute_not_exists` checks on the hash key.
+#[derive(Copy, Clone)]
 pub enum ExistenceCheck {
     None,
     MustExist,
