@@ -18,6 +18,17 @@ pub fn create_put_item_builder(item: &ItemDefinition) -> TokenStream {
         quote! {}
     };
 
+    let increment_version = if let Some(ver_attr) = &item.version_attribute {
+        let ver_field = &ver_attr.field;
+        quote! {
+            if self.cond.is_versioning_enabled() {
+                item.#ver_field += 1;
+            }
+        }
+    } else {
+        quote! {}
+    };
+
     quote! {
         struct #put_item_struct<'a> {
             table: &'a #table_struct,
@@ -38,12 +49,15 @@ pub fn create_put_item_builder(item: &ItemDefinition) -> TokenStream {
                 self
             }
 
-            fn condition<F>(mut self, f: F) -> #put_item_struct<'a>
+            fn condition<F, R>(mut self, f: F) -> #put_item_struct<'a>
             where
-                F: FnOnce(&mut #condition_builder_struct) -> ::aymond::condition::CondExpr
+                F: FnOnce(&mut #condition_builder_struct) -> R,
+                R: ::aymond::condition::IntoOptionalCondExpr,
             {
-                let expr = f(&mut self.cond);
-                self.cond.set_expr(expr);
+                let result = f(&mut self.cond);
+                if let Some(expr) = result.into_optional_cond_expr() {
+                    self.cond.set_expr(expr);
+                }
                 self
             }
 
@@ -61,10 +75,12 @@ pub fn create_put_item_builder(item: &ItemDefinition) -> TokenStream {
                 F: FnOnce(#aws_sdk_dynamodb::operation::put_item::builders::PutItemFluentBuilder)
                 -> #aws_sdk_dynamodb::operation::put_item::builders::PutItemFluentBuilder
             {
+                let mut item = self.i.expect("item not set");
+                #increment_version
                 let (cond_expr, expr_name, expr_value) = self.cond.build();
                 let mut req = f(self.table.client.put_item())
                     .table_name(&self.table.table_name)
-                    .set_item(Some(self.i.expect("item not set").into()));
+                    .set_item(Some(item.into()));
                 if cond_expr.is_some() {
                     req = req.set_condition_expression(cond_expr)
                         .set_expression_attribute_names(expr_name)
@@ -89,10 +105,12 @@ pub fn create_put_item_builder(item: &ItemDefinition) -> TokenStream {
 
         impl<'a> Into<#aws_sdk_dynamodb::types::Put> for #put_item_struct<'a> {
             fn into(self) -> #aws_sdk_dynamodb::types::Put {
+                let mut item = self.i.expect("item not set");
+                #increment_version
                 let (cond_expr, expr_name, expr_value) = self.cond.build();
                 let mut b = #aws_sdk_dynamodb::types::Put::builder()
                     .table_name(&self.table.table_name)
-                    .set_item(Some(self.i.expect("item not set").into()));
+                    .set_item(Some(item.into()));
                 if cond_expr.is_some() {
                     b = b.set_condition_expression(cond_expr)
                         .set_expression_attribute_names(expr_name)

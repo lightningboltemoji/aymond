@@ -35,6 +35,12 @@ pub enum CondExpr {
         low: AttributeValue,
         high: AttributeValue,
     },
+    AttributeExists {
+        path: Vec<PathSegment>,
+    },
+    AttributeNotExists {
+        path: Vec<PathSegment>,
+    },
 }
 
 impl CondExpr {
@@ -146,6 +152,14 @@ impl CondExpr {
                     "{} BETWEEN {} AND {}",
                     path_str, low_placeholder, high_placeholder
                 )
+            }
+            CondExpr::AttributeExists { path } => {
+                let path_str = Self::render_path(path, counter, names);
+                format!("attribute_exists({})", path_str)
+            }
+            CondExpr::AttributeNotExists { path } => {
+                let path_str = Self::render_path(path, counter, names);
+                format!("attribute_not_exists({})", path_str)
             }
         }
     }
@@ -364,5 +378,33 @@ impl BinarySetConditionPath {
             path: self.path,
             value: AttributeValue::B(aws_sdk_dynamodb::primitives::Blob::new(v)),
         }
+    }
+}
+
+// ── ExistenceCheck ──
+
+/// Controls `attribute_exists` / `attribute_not_exists` checks on the hash key.
+pub enum ExistenceCheck {
+    None,
+    MustExist,
+    MustNotExist,
+}
+
+// ── IntoOptionalCondExpr ──
+
+/// Allows condition closures to return either a `CondExpr` or `()`.
+pub trait IntoOptionalCondExpr {
+    fn into_optional_cond_expr(self) -> Option<CondExpr>;
+}
+
+impl IntoOptionalCondExpr for CondExpr {
+    fn into_optional_cond_expr(self) -> Option<CondExpr> {
+        Some(self)
+    }
+}
+
+impl IntoOptionalCondExpr for () {
+    fn into_optional_cond_expr(self) -> Option<CondExpr> {
+        Option::None
     }
 }

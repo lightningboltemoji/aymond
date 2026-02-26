@@ -136,12 +136,15 @@ pub fn create_delete_builder(item: &ItemDefinition) -> TokenStream {
         #builders
 
         impl<'a> #delete_item_struct<'a> {
-            fn condition<F>(mut self, f: F) -> #delete_item_struct<'a>
+            fn condition<F, R>(mut self, f: F) -> #delete_item_struct<'a>
             where
-                F: FnOnce(&mut #condition_builder_struct) -> ::aymond::condition::CondExpr
+                F: FnOnce(&mut #condition_builder_struct) -> R,
+                R: ::aymond::condition::IntoOptionalCondExpr,
             {
-                let expr = f(&mut self.cond);
-                self.cond.set_expr(expr);
+                let result = f(&mut self.cond);
+                if let Some(expr) = result.into_optional_cond_expr() {
+                    self.cond.set_expr(expr);
+                }
                 self
             }
 

@@ -16,28 +16,28 @@ async fn test_version_optimistic_locking() {
     table.delete(false).await.expect("Failed to delete");
     table.create(false).await.expect("Failed to create");
 
-    // Initial insert via raw SDK (bypasses version check)
-    let item_map: ::std::collections::HashMap<
-        String,
-        aymond::shim::aws_sdk_dynamodb::types::AttributeValue,
-    > = Counter {
-        id: "c1".to_string(),
-        count: 0,
-        ver: 1,
-    }
-    .into();
-    aymond
-        .client.put_item()
-        .table_name("version_optimistic")
-        .set_item(Some(item_map))
-        .send()
-        .await
-        .expect("Initial put should succeed");
-
-    // Put with correct version (ver=1 matches DB) — should succeed
+    // Initial insert using version-zero (safe creation)
+    // ver=0 → attribute_not_exists condition, DB gets ver=1
     let c = Counter {
         id: "c1".to_string(),
-        count: 1,
+        count: 0,
+        ver: 0,
+    };
+    table
+        .put()
+        .item(c)
+        .send()
+        .await
+        .expect("Version-zero initial put should succeed");
+
+    // Verify DB has ver=1 after auto-increment
+    let get = table.get().id("c1").send().await.unwrap().unwrap();
+    assert_eq!(get.ver, 1);
+
+    // Put with correct ver=1 (matches DB) — should succeed, DB gets ver=2
+    let c = Counter {
+        id: "c1".to_string(),
+        count: 5,
         ver: 1,
     };
     table
@@ -47,24 +47,10 @@ async fn test_version_optimistic_locking() {
         .await
         .expect("Put with correct version should succeed");
 
-    // Now DB has ver=1 still (version doesn't auto-increment).
-    // Overwrite with ver=2 directly so we can test staleness.
-    let item_map: ::std::collections::HashMap<
-        String,
-        aymond::shim::aws_sdk_dynamodb::types::AttributeValue,
-    > = Counter {
-        id: "c1".to_string(),
-        count: 10,
-        ver: 2,
-    }
-    .into();
-    aymond
-        .client.put_item()
-        .table_name("version_optimistic")
-        .set_item(Some(item_map))
-        .send()
-        .await
-        .expect("Direct put should succeed");
+    // Verify DB has ver=2
+    let get = table.get().id("c1").send().await.unwrap().unwrap();
+    assert_eq!(get.ver, 2);
+    assert_eq!(get.count, 5);
 
     // Put with stale ver=1 (DB has ver=2) — should fail
     let c = Counter {
@@ -78,7 +64,7 @@ async fn test_version_optimistic_locking() {
         "Put with stale version should fail (ConditionalCheckFailed)"
     );
 
-    // Put with correct ver=2 — should succeed
+    // Put with correct ver=2 — should succeed, DB gets ver=3
     let c = Counter {
         id: "c1".to_string(),
         count: 11,
@@ -90,6 +76,11 @@ async fn test_version_optimistic_locking() {
         .send()
         .await
         .expect("Put with correct version should succeed");
+
+    // Verify DB has ver=3
+    let get = table.get().id("c1").send().await.unwrap().unwrap();
+    assert_eq!(get.ver, 3);
+    assert_eq!(get.count, 11);
 }
 
 #[tokio::test]
@@ -110,25 +101,20 @@ async fn test_version_with_custom_name() {
     table.delete(false).await.expect("Failed to delete");
     table.create(false).await.expect("Failed to create");
 
-    // Initial insert via raw SDK
-    let item_map: ::std::collections::HashMap<
-        String,
-        aymond::shim::aws_sdk_dynamodb::types::AttributeValue,
-    > = Widget {
+    // Initial insert using version-zero, DB gets ver=1
+    let w = Widget {
         id: "w1".to_string(),
         name: "Gear".to_string(),
-        ver: 1,
-    }
-    .into();
-    aymond
-        .client.put_item()
-        .table_name("version_custom_name")
-        .set_item(Some(item_map))
+        ver: 0,
+    };
+    table
+        .put()
+        .item(w)
         .send()
         .await
-        .expect("Initial put should succeed");
+        .expect("Version-zero initial put should succeed");
 
-    // Put with correct version
+    // Put with correct ver=1, DB gets ver=2
     let w = Widget {
         id: "w1".to_string(),
         name: "Gear v2".to_string(),
@@ -170,29 +156,25 @@ async fn test_version_disable_versioning() {
     table.delete(false).await.expect("Failed to delete");
     table.create(false).await.expect("Failed to create");
 
-    // Insert ver=5 directly
-    let item_map: ::std::collections::HashMap<
-        String,
-        aymond::shim::aws_sdk_dynamodb::types::AttributeValue,
-    > = Counter {
+    // Insert ver=0, DB gets ver=1
+    let c = Counter {
         id: "c1".to_string(),
         count: 0,
-        ver: 5,
-    }
-    .into();
-    aymond
-        .client.put_item()
-        .table_name("version_disable")
-        .set_item(Some(item_map))
+        ver: 0,
+    };
+    table
+        .put()
+        .item(c)
         .send()
         .await
         .expect("Initial put should succeed");
 
-    // Put with stale ver=1 but disable_versioning — should succeed
+    // Put with stale ver=99 but disable_versioning — should succeed
+    // No auto-increment since versioning is disabled, DB gets ver=99
     let c = Counter {
         id: "c1".to_string(),
         count: 99,
-        ver: 1,
+        ver: 99,
     };
     table
         .put()
@@ -224,23 +206,27 @@ async fn test_version_delete_via_item() {
     table.delete(false).await.expect("Failed to delete");
     table.create(false).await.expect("Failed to create");
 
-    // Insert ver=3 directly
-    let item_map: ::std::collections::HashMap<
-        String,
-        aymond::shim::aws_sdk_dynamodb::types::AttributeValue,
-    > = Counter {
+    // Insert ver=0, DB gets ver=1. Then put ver=1, DB gets ver=2. Then ver=2, DB gets ver=3.
+    let c = Counter {
         id: "c1".to_string(),
         count: 10,
-        ver: 3,
-    }
-    .into();
-    aymond
-        .client.put_item()
-        .table_name("version_delete_item")
-        .set_item(Some(item_map))
-        .send()
-        .await
-        .expect("Initial put should succeed");
+        ver: 0,
+    };
+    table.put().item(c).send().await.expect("put should succeed");
+    let c = Counter {
+        id: "c1".to_string(),
+        count: 10,
+        ver: 1,
+    };
+    table.put().item(c).send().await.expect("put should succeed");
+    let c = Counter {
+        id: "c1".to_string(),
+        count: 10,
+        ver: 2,
+    };
+    table.put().item(c).send().await.expect("put should succeed");
+
+    // DB now has ver=3
 
     // Delete with stale version via .item() — should fail
     let c = Counter {
@@ -291,20 +277,15 @@ async fn test_version_delete_explicit_keys_no_version_check() {
     table.delete(false).await.expect("Failed to delete");
     table.create(false).await.expect("Failed to create");
 
-    // Insert ver=5 directly
-    let item_map: ::std::collections::HashMap<
-        String,
-        aymond::shim::aws_sdk_dynamodb::types::AttributeValue,
-    > = Counter {
+    // Insert ver=0, DB gets ver=1
+    let c = Counter {
         id: "c1".to_string(),
         count: 10,
-        ver: 5,
-    }
-    .into();
-    aymond
-        .client.put_item()
-        .table_name("version_delete_explicit")
-        .set_item(Some(item_map))
+        ver: 0,
+    };
+    table
+        .put()
+        .item(c)
         .send()
         .await
         .expect("Initial put should succeed");
@@ -341,25 +322,21 @@ async fn test_version_with_user_condition_combined() {
     table.delete(false).await.expect("Failed to delete");
     table.create(false).await.expect("Failed to create");
 
-    // Insert
-    let item_map: ::std::collections::HashMap<
-        String,
-        aymond::shim::aws_sdk_dynamodb::types::AttributeValue,
-    > = Counter {
+    // Insert ver=0, DB gets ver=1
+    let c = Counter {
         id: "c1".to_string(),
         count: 10,
-        ver: 1,
-    }
-    .into();
-    aymond
-        .client.put_item()
-        .table_name("version_combined_cond")
-        .set_item(Some(item_map))
+        ver: 0,
+    };
+    table
+        .put()
+        .item(c)
         .send()
         .await
         .expect("Initial put should succeed");
 
     // Put with correct version AND true user condition — should succeed
+    // ver=1 matches DB, condition count=10 also matches, DB gets ver=2
     let c = Counter {
         id: "c1".to_string(),
         count: 20,
@@ -376,4 +353,236 @@ async fn test_version_with_user_condition_combined() {
     // Verify update happened
     let get = table.get().id("c1").send().await.unwrap().unwrap();
     assert_eq!(get.count, 20);
+    assert_eq!(get.ver, 2);
+}
+
+#[tokio::test]
+async fn test_version_zero_initial_creation() {
+    use aymond::{Aymond, prelude::*};
+
+    #[aymond(item, table)]
+    struct Counter {
+        #[aymond(hash_key)]
+        id: String,
+        count: i32,
+        #[aymond(attribute(version))]
+        ver: i64,
+    }
+
+    let aymond = Aymond::new_with_local_config("http://localhost:8000", "us-west-2");
+    let table = CounterTable::new(&aymond, "version_zero_create");
+    table.delete(false).await.expect("Failed to delete");
+    table.create(false).await.expect("Failed to create");
+
+    // Version-zero put on empty table — should succeed (generates attribute_not_exists)
+    // DB gets ver=1 after auto-increment
+    let c = Counter {
+        id: "c1".to_string(),
+        count: 0,
+        ver: 0,
+    };
+    table
+        .put()
+        .item(c)
+        .send()
+        .await
+        .expect("Version-zero put on empty table should succeed");
+
+    // Verify item was created with ver=1
+    let get = table.get().id("c1").send().await.unwrap().unwrap();
+    assert_eq!(get.ver, 1);
+
+    // Version-zero put again — should fail (item already exists)
+    let c = Counter {
+        id: "c1".to_string(),
+        count: 1,
+        ver: 0,
+    };
+    let result = table.put().item(c).send().await;
+    assert!(
+        result.is_err(),
+        "Version-zero put should fail when item already exists"
+    );
+}
+
+#[tokio::test]
+async fn test_must_not_exist_condition() {
+    use aymond::{Aymond, prelude::*};
+
+    #[aymond(item, table)]
+    struct Counter {
+        #[aymond(hash_key)]
+        id: String,
+        count: i32,
+        #[aymond(attribute(version))]
+        ver: i64,
+    }
+
+    let aymond = Aymond::new_with_local_config("http://localhost:8000", "us-west-2");
+    let table = CounterTable::new(&aymond, "version_must_not_exist");
+    table.delete(false).await.expect("Failed to delete");
+    table.create(false).await.expect("Failed to create");
+
+    // Use must_not_exist() explicitly for safe creation
+    // ver=5 → auto-incremented to 6, but must_not_exist overrides version check
+    let c = Counter {
+        id: "c1".to_string(),
+        count: 0,
+        ver: 5,
+    };
+    table
+        .put()
+        .item(c)
+        .condition(|c| {
+            c.must_not_exist();
+        })
+        .send()
+        .await
+        .expect("must_not_exist on empty table should succeed");
+
+    // Verify ver was auto-incremented to 6
+    let get = table.get().id("c1").send().await.unwrap().unwrap();
+    assert_eq!(get.ver, 6);
+
+    // Try again — should fail because item exists
+    let c = Counter {
+        id: "c1".to_string(),
+        count: 1,
+        ver: 5,
+    };
+    let result = table
+        .put()
+        .item(c)
+        .condition(|c| {
+            c.must_not_exist();
+        })
+        .send()
+        .await;
+    assert!(
+        result.is_err(),
+        "must_not_exist should fail when item already exists"
+    );
+}
+
+#[tokio::test]
+async fn test_must_exist_condition() {
+    use aymond::{Aymond, prelude::*};
+
+    #[aymond(item, table)]
+    struct Counter {
+        #[aymond(hash_key)]
+        id: String,
+        count: i32,
+        #[aymond(attribute(version))]
+        ver: i64,
+    }
+
+    let aymond = Aymond::new_with_local_config("http://localhost:8000", "us-west-2");
+    let table = CounterTable::new(&aymond, "version_must_exist");
+    table.delete(false).await.expect("Failed to delete");
+    table.create(false).await.expect("Failed to create");
+
+    // must_exist on empty table — should fail
+    let c = Counter {
+        id: "c1".to_string(),
+        count: 0,
+        ver: 5,
+    };
+    let result = table
+        .put()
+        .item(c)
+        .condition(|c| {
+            c.must_exist();
+        })
+        .send()
+        .await;
+    assert!(
+        result.is_err(),
+        "must_exist should fail when item doesn't exist"
+    );
+
+    // Insert item first (ver=0 → DB gets ver=1)
+    let c = Counter {
+        id: "c1".to_string(),
+        count: 0,
+        ver: 0,
+    };
+    table
+        .put()
+        .item(c)
+        .send()
+        .await
+        .expect("Version-zero initial put should succeed");
+
+    // must_exist on existing item — should succeed (overrides version check)
+    // ver=999 → auto-incremented to 1000, but must_exist overrides version check
+    let c = Counter {
+        id: "c1".to_string(),
+        count: 10,
+        ver: 999,
+    };
+    table
+        .put()
+        .item(c)
+        .condition(|c| {
+            c.must_exist();
+        })
+        .send()
+        .await
+        .expect("must_exist should succeed when item exists");
+
+    // Verify update happened with auto-incremented ver
+    let get = table.get().id("c1").send().await.unwrap().unwrap();
+    assert_eq!(get.count, 10);
+    assert_eq!(get.ver, 1000);
+}
+
+#[tokio::test]
+async fn test_must_not_exist_on_non_versioned_item() {
+    use aymond::{Aymond, prelude::*};
+
+    #[aymond(item, table)]
+    struct SimpleItem {
+        #[aymond(hash_key)]
+        id: String,
+        value: String,
+    }
+
+    let aymond = Aymond::new_with_local_config("http://localhost:8000", "us-west-2");
+    let table = SimpleItemTable::new(&aymond, "non_versioned_existence");
+    table.delete(false).await.expect("Failed to delete");
+    table.create(false).await.expect("Failed to create");
+
+    // must_not_exist on empty table — should succeed
+    let item = SimpleItem {
+        id: "s1".to_string(),
+        value: "hello".to_string(),
+    };
+    table
+        .put()
+        .item(item)
+        .condition(|c| {
+            c.must_not_exist();
+        })
+        .send()
+        .await
+        .expect("must_not_exist on empty table should succeed");
+
+    // must_not_exist again — should fail
+    let item = SimpleItem {
+        id: "s1".to_string(),
+        value: "world".to_string(),
+    };
+    let result = table
+        .put()
+        .item(item)
+        .condition(|c| {
+            c.must_not_exist();
+        })
+        .send()
+        .await;
+    assert!(
+        result.is_err(),
+        "must_not_exist should fail when item already exists"
+    );
 }

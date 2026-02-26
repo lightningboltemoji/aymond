@@ -5,6 +5,8 @@ use quote::{format_ident, quote};
 pub fn create_condition_builder(item: &ItemDefinition) -> TokenStream {
     let ident = format_ident!("{}Condition", &item.name);
 
+    let hash_key_ddb_name = &item.hash_key.as_ref().unwrap().ddb_name;
+
     let accessors: Vec<TokenStream> = item
         .all_attributes()
         .map(|attr| {
@@ -29,12 +31,18 @@ pub fn create_condition_builder(item: &ItemDefinition) -> TokenStream {
             pub struct #ident {
                 versioning: bool,
                 version_value: Option<#ver_ty>,
+                existence: ::aymond::condition::ExistenceCheck,
                 expr: Option<::aymond::condition::CondExpr>,
             }
 
             impl #ident {
                 fn new() -> Self {
-                    Self { versioning: true, version_value: None, expr: None }
+                    Self {
+                        versioning: true,
+                        version_value: None,
+                        existence: ::aymond::condition::ExistenceCheck::None,
+                        expr: None,
+                    }
                 }
 
                 pub fn enable_versioning(&mut self) -> &mut Self {
@@ -44,6 +52,20 @@ pub fn create_condition_builder(item: &ItemDefinition) -> TokenStream {
 
                 pub fn disable_versioning(&mut self) -> &mut Self {
                     self.versioning = false;
+                    self
+                }
+
+                pub fn is_versioning_enabled(&self) -> bool {
+                    self.versioning
+                }
+
+                pub fn must_exist(&mut self) -> &mut Self {
+                    self.existence = ::aymond::condition::ExistenceCheck::MustExist;
+                    self
+                }
+
+                pub fn must_not_exist(&mut self) -> &mut Self {
+                    self.existence = ::aymond::condition::ExistenceCheck::MustNotExist;
                     self
                 }
 
@@ -64,16 +86,42 @@ pub fn create_condition_builder(item: &ItemDefinition) -> TokenStream {
                     Option<::std::collections::HashMap<String, String>>,
                     Option<::std::collections::HashMap<String, ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue>>,
                 ) {
-                    let version_expr = if self.versioning && self.version_value.is_some() {
-                        Some(::aymond::condition::CondExpr::Comparison {
-                            path: vec![::aymond::condition::PathSegment::Attr(#ver_ddb_name.to_string())],
-                            op: "=",
-                            value: ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue::N(
-                                self.version_value.unwrap().to_string()
-                            ),
-                        })
-                    } else {
-                        None
+                    // Priority: explicit existence > version-zero auto > normal versioning
+                    let version_expr = match self.existence {
+                        ::aymond::condition::ExistenceCheck::MustNotExist => {
+                            Some(::aymond::condition::CondExpr::AttributeNotExists {
+                                path: vec![::aymond::condition::PathSegment::Attr(#hash_key_ddb_name.to_string())],
+                            })
+                        }
+                        ::aymond::condition::ExistenceCheck::MustExist => {
+                            Some(::aymond::condition::CondExpr::AttributeExists {
+                                path: vec![::aymond::condition::PathSegment::Attr(#hash_key_ddb_name.to_string())],
+                            })
+                        }
+                        ::aymond::condition::ExistenceCheck::None => {
+                            if self.versioning {
+                                match self.version_value {
+                                    Some(v) if v == 0 => {
+                                        // Version zero: item must not exist yet
+                                        Some(::aymond::condition::CondExpr::AttributeNotExists {
+                                            path: vec![::aymond::condition::PathSegment::Attr(#hash_key_ddb_name.to_string())],
+                                        })
+                                    }
+                                    Some(v) => {
+                                        Some(::aymond::condition::CondExpr::Comparison {
+                                            path: vec![::aymond::condition::PathSegment::Attr(#ver_ddb_name.to_string())],
+                                            op: "=",
+                                            value: ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue::N(
+                                                v.to_string()
+                                            ),
+                                        })
+                                    }
+                                    None => None,
+                                }
+                            } else {
+                                None
+                            }
+                        }
                     };
 
                     let combined = match (self.expr, version_expr) {
@@ -86,7 +134,11 @@ pub fn create_condition_builder(item: &ItemDefinition) -> TokenStream {
                     match combined {
                         Some(expr) => {
                             let (e, n, v) = expr.build();
-                            (Some(e), Some(n), Some(v))
+                            (
+                                Some(e),
+                                if n.is_empty() { None } else { Some(n) },
+                                if v.is_empty() { None } else { Some(v) },
+                            )
                         }
                         None => (None, None, None),
                     }
@@ -96,12 +148,26 @@ pub fn create_condition_builder(item: &ItemDefinition) -> TokenStream {
     } else {
         quote! {
             pub struct #ident {
+                existence: ::aymond::condition::ExistenceCheck,
                 expr: Option<::aymond::condition::CondExpr>,
             }
 
             impl #ident {
                 fn new() -> Self {
-                    Self { expr: None }
+                    Self {
+                        existence: ::aymond::condition::ExistenceCheck::None,
+                        expr: None,
+                    }
+                }
+
+                pub fn must_exist(&mut self) -> &mut Self {
+                    self.existence = ::aymond::condition::ExistenceCheck::MustExist;
+                    self
+                }
+
+                pub fn must_not_exist(&mut self) -> &mut Self {
+                    self.existence = ::aymond::condition::ExistenceCheck::MustNotExist;
+                    self
                 }
 
                 fn set_expr(&mut self, expr: ::aymond::condition::CondExpr) {
@@ -117,10 +183,35 @@ pub fn create_condition_builder(item: &ItemDefinition) -> TokenStream {
                     Option<::std::collections::HashMap<String, String>>,
                     Option<::std::collections::HashMap<String, ::aymond::shim::aws_sdk_dynamodb::types::AttributeValue>>,
                 ) {
-                    match self.expr {
+                    let existence_expr = match self.existence {
+                        ::aymond::condition::ExistenceCheck::MustNotExist => {
+                            Some(::aymond::condition::CondExpr::AttributeNotExists {
+                                path: vec![::aymond::condition::PathSegment::Attr(#hash_key_ddb_name.to_string())],
+                            })
+                        }
+                        ::aymond::condition::ExistenceCheck::MustExist => {
+                            Some(::aymond::condition::CondExpr::AttributeExists {
+                                path: vec![::aymond::condition::PathSegment::Attr(#hash_key_ddb_name.to_string())],
+                            })
+                        }
+                        ::aymond::condition::ExistenceCheck::None => None,
+                    };
+
+                    let combined = match (self.expr, existence_expr) {
+                        (Some(u), Some(v)) => Some(u.and(v)),
+                        (Some(u), None) => Some(u),
+                        (None, Some(v)) => Some(v),
+                        (None, None) => None,
+                    };
+
+                    match combined {
                         Some(expr) => {
                             let (e, n, v) = expr.build();
-                            (Some(e), Some(n), Some(v))
+                            (
+                                Some(e),
+                                if n.is_empty() { None } else { Some(n) },
+                                if v.is_empty() { None } else { Some(v) },
+                            )
                         }
                         None => (None, None, None),
                     }
