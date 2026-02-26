@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::hash::Hash;
 use std::marker::PhantomData;
 
 use aws_sdk_dynamodb::types::AttributeValue;
@@ -23,6 +24,10 @@ enum UpdateAction {
     },
     Remove {
         path: Vec<PathSegment>,
+    },
+    Delete {
+        path: Vec<PathSegment>,
+        value: AttributeValue,
     },
 }
 
@@ -49,6 +54,12 @@ impl UpdateExpr {
         }
     }
 
+    pub fn delete(path: Vec<PathSegment>, value: AttributeValue) -> Self {
+        Self {
+            actions: vec![UpdateAction::Delete { path, value }],
+        }
+    }
+
     pub fn and(mut self, mut other: UpdateExpr) -> UpdateExpr {
         self.actions.append(&mut other.actions);
         self
@@ -66,6 +77,7 @@ impl UpdateExpr {
         let mut counter: usize = 0;
         let mut set_parts = Vec::new();
         let mut remove_parts = Vec::new();
+        let mut delete_parts = Vec::new();
 
         for action in self.actions {
             match action {
@@ -87,6 +99,13 @@ impl UpdateExpr {
                     let path_str = Self::render_path(&path, &mut counter, &mut names);
                     remove_parts.push(path_str);
                 }
+                UpdateAction::Delete { path, value } => {
+                    let path_str = Self::render_path(&path, &mut counter, &mut names);
+                    let value_ph = format!(":u{}", counter);
+                    counter += 1;
+                    values.insert(value_ph.clone(), value);
+                    delete_parts.push(format!("{} {}", path_str, value_ph));
+                }
             }
         }
 
@@ -96,6 +115,9 @@ impl UpdateExpr {
         }
         if !remove_parts.is_empty() {
             parts.push(format!("REMOVE {}", remove_parts.join(", ")));
+        }
+        if !delete_parts.is_empty() {
+            parts.push(format!("DELETE {}", delete_parts.join(", ")));
         }
         (parts.join(" "), names, values)
     }
@@ -133,6 +155,12 @@ pub trait IntoUpdateNumberValue {
     fn into_update_number_value(self) -> AttributeValue;
 }
 
+pub trait IntoUpdateSetValue {
+    fn into_update_set_value(values: HashSet<Self>) -> AttributeValue
+    where
+        Self: Sized;
+}
+
 impl IntoUpdateValue for String {
     fn into_update_value(self) -> AttributeValue {
         AttributeValue::S(self)
@@ -167,6 +195,23 @@ impl IntoUpdateValue for HashSet<Vec<u8>> {
     fn into_update_value(self) -> AttributeValue {
         AttributeValue::Bs(
             self.into_iter()
+                .map(aws_sdk_dynamodb::primitives::Blob::new)
+                .collect(),
+        )
+    }
+}
+
+impl IntoUpdateSetValue for String {
+    fn into_update_set_value(values: HashSet<Self>) -> AttributeValue {
+        AttributeValue::Ss(values.into_iter().collect())
+    }
+}
+
+impl IntoUpdateSetValue for Vec<u8> {
+    fn into_update_set_value(values: HashSet<Self>) -> AttributeValue {
+        AttributeValue::Bs(
+            values
+                .into_iter()
                 .map(aws_sdk_dynamodb::primitives::Blob::new)
                 .collect(),
         )
@@ -245,6 +290,36 @@ impl<T: UpdatePathRoot> ListUpdatePath<T> {
     }
 }
 
+pub struct SetUpdatePath<T: IntoUpdateSetValue + Eq + Hash> {
+    path: Vec<PathSegment>,
+    _phantom: PhantomData<T>,
+}
+
+impl<T: IntoUpdateSetValue + Eq + Hash> UpdatePathRoot for SetUpdatePath<T> {
+    fn with_prefix(path: Vec<PathSegment>) -> Self {
+        Self {
+            path,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<T: IntoUpdateSetValue + Eq + Hash> SetUpdatePath<T> {
+    pub fn set(self, values: HashSet<T>) -> UpdateExpr {
+        UpdateExpr::set(self.path, T::into_update_set_value(values))
+    }
+
+    pub fn delete(self, v: impl Into<T>) -> UpdateExpr {
+        let mut values = HashSet::new();
+        values.insert(v.into());
+        UpdateExpr::delete(self.path, T::into_update_set_value(values))
+    }
+
+    pub fn delete_set(self, values: HashSet<T>) -> UpdateExpr {
+        UpdateExpr::delete(self.path, T::into_update_set_value(values))
+    }
+}
+
 pub trait IntoOptionalUpdateExpr {
     fn into_optional_update_expr(self) -> Option<UpdateExpr>;
 }
@@ -267,13 +342,17 @@ mod tests {
     use aws_sdk_dynamodb::types::AttributeValue;
 
     #[test]
-    fn test_update_expr_render_set_and_remove() {
+    fn test_update_expr_render_set_remove_and_delete() {
         let expr = UpdateExpr::add(
             vec![PathSegment::Attr("count".into())],
             AttributeValue::N("10".into()),
         )
-        .and(UpdateExpr::remove(vec![PathSegment::Attr("flag".into())]));
+        .and(UpdateExpr::remove(vec![PathSegment::Attr("flag".into())]))
+        .and(UpdateExpr::delete(
+            vec![PathSegment::Attr("labels".into())],
+            AttributeValue::Ss(vec!["rust".into()]),
+        ));
         let (rendered, _, _) = expr.build();
-        assert_eq!(rendered, "SET #u0 = #u0 + :u1 REMOVE #u2");
+        assert_eq!(rendered, "SET #u0 = #u0 + :u1 REMOVE #u2 DELETE #u3 :u4");
     }
 }

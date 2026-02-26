@@ -20,7 +20,7 @@ async fn test() {
     let it_factory = || Tag {
         pk: "row1".to_string(),
         labels: HashSet::from(["rust".to_string(), "backend".to_string()]),
-        blobs: HashSet::from([vec![1u8, 2, 3]]),
+        blobs: HashSet::from([vec![1u8, 2, 3], vec![4u8, 5, 6]]),
         extra: None,
     };
     table
@@ -72,4 +72,21 @@ async fn test() {
         .send()
         .await;
     assert!(result.is_err());
+
+    // Update expression: delete one and many items from sets
+    table
+        .update()
+        .pk("row1")
+        .expression(|e| {
+            e.labels()
+                .delete_set(HashSet::from(["backend".to_string()]))
+                .and(e.blobs().delete(vec![1u8, 2, 3]))
+        })
+        .send()
+        .await
+        .expect("Failed to update");
+
+    let updated = table.get().pk("row1").send().await.unwrap().unwrap();
+    assert_eq!(updated.labels, HashSet::from(["rust".to_string()]));
+    assert_eq!(updated.blobs, HashSet::from([vec![4u8, 5, 6]]));
 }

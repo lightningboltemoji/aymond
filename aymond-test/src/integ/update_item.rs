@@ -1,6 +1,7 @@
 #[tokio::test]
 async fn test_update_item_with_expression_and_condition() {
     use aymond::{Aymond, prelude::*};
+    use std::collections::HashSet;
 
     #[aymond(item, table)]
     struct Car {
@@ -10,6 +11,7 @@ async fn test_update_item_with_expression_and_condition() {
         model: String,
         count: i32,
         flag: Option<String>,
+        labels: HashSet<String>,
     }
 
     let aymond = Aymond::new_with_local_config("http://localhost:8000", "us-west-2");
@@ -24,6 +26,7 @@ async fn test_update_item_with_expression_and_condition() {
             model: "911".to_string(),
             count: 5,
             flag: Some("yes".to_string()),
+            labels: HashSet::from(["sport".to_string(), "legacy".to_string()]),
         })
         .send()
         .await
@@ -33,7 +36,12 @@ async fn test_update_item_with_expression_and_condition() {
         .update()
         .make("Porsche")
         .model("911")
-        .expression(|e| e.count().add(10).and(e.remove().flag()))
+        .expression(|e| {
+            e.count()
+                .add(10)
+                .and(e.remove().flag())
+                .and(e.labels().delete("legacy"))
+        })
         .condition(|c| c.count().eq(5))
         .send()
         .await
@@ -49,6 +57,7 @@ async fn test_update_item_with_expression_and_condition() {
         .expect("Item should exist");
     assert_eq!(res.count, 15);
     assert_eq!(res.flag, None);
+    assert_eq!(res.labels, HashSet::from(["sport".to_string()]));
 }
 
 #[tokio::test]

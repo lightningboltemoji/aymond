@@ -285,10 +285,10 @@ impl ItemAttribute {
                 parse_quote!(#upd::ListUpdatePath<#inner>)
             }
             [h, s, ..] if h == "HashSet" && s == "String" => {
-                parse_quote!(#upd::ScalarUpdatePath<::std::collections::HashSet<String>>)
+                parse_quote!(#upd::SetUpdatePath<String>)
             }
             [h, v, u, ..] if h == "HashSet" && v == "Vec" && u == "u8" => {
-                parse_quote!(#upd::ScalarUpdatePath<::std::collections::HashSet<Vec<u8>>>)
+                parse_quote!(#upd::SetUpdatePath<Vec<u8>>)
             }
             [name, ..] => {
                 let path_ident = format_ident!("{}UpdatePath", name);
