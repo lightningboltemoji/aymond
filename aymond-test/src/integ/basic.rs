@@ -47,15 +47,14 @@ async fn test() {
     let get = req.send().await.unwrap();
     assert_eq!(get.unwrap(), it_factory());
 
-    let req = table.get().make("Porsche").model("911");
-    let res = req.raw(|r| r.consistent_read(true)).await.ok().unwrap();
-    assert_eq!(
-        res.item().unwrap()["production"].as_m().unwrap()["units_produced"]
-            .as_n()
-            .unwrap(),
-        "1100000"
-    );
-    let get: Option<Car> = res.item().map(|i| i.into());
+    let get = table
+        .get()
+        .make("Porsche")
+        .model("911")
+        .consistent_read(true)
+        .send()
+        .await
+        .unwrap();
     assert_eq!(get.unwrap(), it_factory());
 
     let res = table.query().make("Porsche").model_gt("9").send().await;

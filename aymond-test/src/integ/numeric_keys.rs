@@ -22,9 +22,14 @@ async fn test() {
     let get = table.get().row(10).col(14).send().await.unwrap();
     assert_eq!(get.unwrap(), it_factory());
 
-    let req = table.get().row(10).col(14);
-    let res = req.raw(|r| r.consistent_read(true)).await;
-    let get: Option<Cell> = res.ok().and_then(|e| e.item().map(|i| i.into()));
+    let get = table
+        .get()
+        .row(10)
+        .col(14)
+        .consistent_read(true)
+        .send()
+        .await
+        .unwrap();
     assert_eq!(get.unwrap(), it_factory());
 
     let res = table.query().row(10).col_gt(10).send().await;

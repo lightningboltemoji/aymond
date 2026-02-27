@@ -34,11 +34,17 @@ pub fn create_get_builder(item: &ItemDefinition) -> TokenStream {
                 table: &'a #table_struct,
                 hk: Option<#hash_key_typ>,
                 sk: Option<#sort_key_typ>,
+                consistent_read: Option<bool>,
             }
 
             impl<'a> #get_item_struct<'a> {
                 fn new(table: &'a #table_struct) -> #hash_key_struct<'a> {
-                    let q = #get_item_struct { table, hk: None, sk: None };
+                    let q = #get_item_struct {
+                        table,
+                        hk: None,
+                        sk: None,
+                        consistent_read: None,
+                    };
                     #hash_key_struct { q }
                 }
             }
@@ -81,11 +87,16 @@ pub fn create_get_builder(item: &ItemDefinition) -> TokenStream {
             struct #get_item_struct<'a> {
                 table: &'a #table_struct,
                 hk: Option<#hash_key_typ>,
+                consistent_read: Option<bool>,
             }
 
             impl<'a> #get_item_struct<'a> {
                 fn new(table: &'a #table_struct) -> #hash_key_struct<'a> {
-                    let q = #get_item_struct { table, hk: None };
+                    let q = #get_item_struct {
+                        table,
+                        hk: None,
+                        consistent_read: None,
+                    };
                     #hash_key_struct { q }
                 }
             }
@@ -111,6 +122,11 @@ pub fn create_get_builder(item: &ItemDefinition) -> TokenStream {
         #builders
 
         impl<'a> #get_item_struct<'a> {
+            fn consistent_read(mut self, v: bool) -> Self {
+                self.consistent_read = Some(v);
+                self
+            }
+
             async fn send(self) -> Result<
                 Option<#item_struct>,
                 ::aymond::shim::aws_sdk_dynamodb::error::SdkError<
@@ -136,7 +152,8 @@ pub fn create_get_builder(item: &ItemDefinition) -> TokenStream {
                 F: FnOnce(#aws_sdk_dynamodb::operation::get_item::builders::GetItemFluentBuilder)
                 -> #aws_sdk_dynamodb::operation::get_item::builders::GetItemFluentBuilder
             {
-                f(self.table.client.get_item())
+                let consistent_read = self.consistent_read;
+                f(self.table.client.get_item().set_consistent_read(consistent_read))
                     .table_name(&self.table.table_name)
                     .set_key(Some(self.into()))
                     .send()

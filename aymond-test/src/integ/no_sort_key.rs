@@ -24,9 +24,13 @@ async fn test() {
     let get = table.get().make("Porsche").send().await.unwrap();
     assert_eq!(get.unwrap(), it_factory());
 
-    let req = table.get().make("Porsche");
-    let res = req.raw(|r| r.consistent_read(true)).await;
-    let get: Option<Car> = res.ok().and_then(|e| e.item().map(|i| i.into()));
+    let get = table
+        .get()
+        .make("Porsche")
+        .consistent_read(true)
+        .send()
+        .await
+        .unwrap();
     assert_eq!(get.unwrap(), it_factory());
 
     let res = table.query().make("Porsche").send().await;
