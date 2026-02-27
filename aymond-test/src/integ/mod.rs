@@ -2,6 +2,7 @@ mod basic;
 mod batch_get;
 mod batch_write;
 mod binary_keys;
+mod condition_check;
 mod delete_item;
 mod no_sort_key;
 mod no_table;

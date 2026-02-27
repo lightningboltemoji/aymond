@@ -20,12 +20,13 @@ pub trait Item:
     fn key_attribute_defintions() -> Vec<AttributeDefinition>;
 }
 
-pub trait Table<'a, T, G, GHK, P, U, UHK, Q, QHK, S, B, D, DHK, BW>
+pub trait Table<'a, T, G, GHK, P, U, UHK, Q, QHK, S, B, D, DHK, BW, C, CHK>
 where
     T: Item,
     GHK: 'a,
     UHK: 'a,
     DHK: 'a,
+    CHK: 'a,
 {
     fn new(client: &'a Aymond, table_name: impl Into<String>) -> Self;
 
@@ -54,4 +55,6 @@ where
     fn delete_item(&'a self) -> DHK;
 
     fn batch_write(&'a self) -> BW;
+
+    fn condition_check(&'a self) -> CHK;
 }

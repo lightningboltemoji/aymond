@@ -7,6 +7,7 @@ use crate::{
     batch_get_item::create_batch_get_builder,
     batch_write_item::create_batch_write_builder,
     condition::create_condition_builder,
+    condition_check::create_condition_check_builder,
     create_scan_builder,
     create_table::create_create_method,
     delete_item::create_delete_builder,
@@ -33,6 +34,8 @@ pub fn create_table(item: &ItemDefinition) -> TokenStream {
     let delete_item_struct = format_ident!("{}DeleteItem", &name);
     let delete_item_hash_key_struct = format_ident!("{}DeleteItemHashKey", &name);
     let batch_write_struct = format_ident!("{}BatchWriteItem", &name);
+    let condition_check_struct = format_ident!("{}ConditionCheck", &name);
+    let condition_check_hash_key_struct = format_ident!("{}ConditionCheckHashKey", &name);
 
     let get_item = create_get_builder(item);
     let put_item = create_put_item_builder(item);
@@ -44,6 +47,7 @@ pub fn create_table(item: &ItemDefinition) -> TokenStream {
     let batch_get = create_batch_get_builder(item);
     let delete_item = create_delete_builder(item);
     let batch_write = create_batch_write_builder(item);
+    let condition_check = create_condition_check_builder(item);
     let create_method = create_create_method(item);
 
     quote! {
@@ -57,6 +61,7 @@ pub fn create_table(item: &ItemDefinition) -> TokenStream {
         #batch_get
         #delete_item
         #batch_write
+        #condition_check
 
         #[derive(Debug)]
         struct #table_struct {
@@ -64,7 +69,7 @@ pub fn create_table(item: &ItemDefinition) -> TokenStream {
             table_name: String,
         }
 
-        impl<'a> Table<'a, #name, #get_item_struct<'a>, #get_item_hash_key_struct<'a>, #put_item_struct<'a>, #update_item_struct<'a>, #update_item_hash_key_struct<'a>, #query_struct<'a>, #query_hash_key_struct<'a>, #scan_struct<'a>, #batch_get_struct<'a>, #delete_item_struct<'a>, #delete_item_hash_key_struct<'a>, #batch_write_struct<'a>> for #table_struct {
+        impl<'a> Table<'a, #name, #get_item_struct<'a>, #get_item_hash_key_struct<'a>, #put_item_struct<'a>, #update_item_struct<'a>, #update_item_hash_key_struct<'a>, #query_struct<'a>, #query_hash_key_struct<'a>, #scan_struct<'a>, #batch_get_struct<'a>, #delete_item_struct<'a>, #delete_item_hash_key_struct<'a>, #batch_write_struct<'a>, #condition_check_struct<'a>, #condition_check_hash_key_struct<'a>> for #table_struct {
 
             fn new(
                 client: &'a ::aymond::Aymond,
@@ -127,6 +132,10 @@ pub fn create_table(item: &ItemDefinition) -> TokenStream {
 
             fn batch_write(&'a self) -> #batch_write_struct<'a> {
                 #batch_write_struct::new(self)
+            }
+
+            fn condition_check(&'a self) -> #condition_check_hash_key_struct<'a> {
+                #condition_check_struct::new(self)
             }
         }
     }
