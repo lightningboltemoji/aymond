@@ -17,10 +17,7 @@ pub mod update;
 
 pub struct Tx<'a> {
     client: &'a Aymond,
-    put: Vec<Put>,
-    delete: Vec<Delete>,
-    update: Vec<Update>,
-    condition_check: Vec<ConditionCheck>,
+    transact_items: Vec<TransactWriteItem>,
 }
 
 pub struct Aymond {
@@ -68,32 +65,36 @@ impl<'a> Aymond {
     pub fn tx(&'a self) -> Tx<'a> {
         Tx {
             client: self,
-            put: vec![],
-            delete: vec![],
-            update: vec![],
-            condition_check: vec![],
+            transact_items: vec![],
         }
     }
 }
 
 impl<'a> Tx<'a> {
     pub fn put(mut self, put: impl Into<Put>) -> Self {
-        self.put.push(put.into());
+        self.transact_items
+            .push(TransactWriteItem::builder().put(put.into()).build());
         self
     }
 
     pub fn delete(mut self, delete: impl Into<Delete>) -> Self {
-        self.delete.push(delete.into());
+        self.transact_items
+            .push(TransactWriteItem::builder().delete(delete.into()).build());
         self
     }
 
     pub fn update(mut self, update: impl Into<Update>) -> Self {
-        self.update.push(update.into());
+        self.transact_items
+            .push(TransactWriteItem::builder().update(update.into()).build());
         self
     }
 
     pub fn condition_check(mut self, condition_check: impl Into<ConditionCheck>) -> Self {
-        self.condition_check.push(condition_check.into());
+        self.transact_items.push(
+            TransactWriteItem::builder()
+                .condition_check(condition_check.into())
+                .build(),
+        );
         self
     }
 
@@ -133,19 +134,6 @@ impl<'a> Tx<'a> {
 
 impl<'a> From<Tx<'a>> for Option<Vec<TransactWriteItem>> {
     fn from(val: Tx<'a>) -> Self {
-        let mut vec = vec![];
-        for p in val.put {
-            vec.push(TransactWriteItem::builder().put(p).build());
-        }
-        for d in val.delete {
-            vec.push(TransactWriteItem::builder().delete(d).build());
-        }
-        for u in val.update {
-            vec.push(TransactWriteItem::builder().update(u).build());
-        }
-        for c in val.condition_check {
-            vec.push(TransactWriteItem::builder().condition_check(c).build());
-        }
-        Some(vec)
+        Some(val.transact_items)
     }
 }
