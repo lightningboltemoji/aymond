@@ -51,7 +51,7 @@ let _: Option<Car> = req.send().await.expect("Failed to read");
 
 ### Attribute types
 
-aymond maps each attributes Rust type to the corresponding DynamoDB type
+aymond maps each attribute's Rust type to the corresponding DynamoDB type
 
 #### Scalars
 
@@ -80,6 +80,19 @@ struct Grades {
     fall: i32,
     winter: i32,
     spring: i32,
+}
+```
+
+#### Optional attributes
+
+By default, attributes are treated as required. To make an attribute optional, use the `Option` type:
+
+```
+#[aymond(item, table)]
+struct Student {
+    #[aymond(hash_key)]
+    name: String,
+    grades: Option<Grades>,
 }
 ```
 
