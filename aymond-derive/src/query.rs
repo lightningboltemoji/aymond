@@ -129,11 +129,24 @@ pub fn create_query_builder(
                 qs: Option<String>,
                 b: Option<#sort_key_typ>,
                 c: Option<#sort_key_typ>,
+                scan_index_forward: Option<bool>,
+                limit: Option<i32>,
+                consistent_read: Option<bool>,
             }
 
             impl<'a> #query_struct<'a> {
                 fn new(table: &'a #table_struct) -> #hash_key_struct<'a> {
-                    let q = #query_struct { table, index_name: #index_name_init, hk: None, qs: None, b: None, c: None };
+                    let q = #query_struct {
+                        table,
+                        index_name: #index_name_init,
+                        hk: None,
+                        qs: None,
+                        b: None,
+                        c: None,
+                        scan_index_forward: None,
+                        limit: None,
+                        consistent_read: None,
+                    };
                     #hash_key_struct { q }
                 }
             }
@@ -228,11 +241,22 @@ pub fn create_query_builder(
                 index_name: Option<String>,
                 hk: Option<#hash_key_typ>,
                 qs: Option<String>,
+                scan_index_forward: Option<bool>,
+                limit: Option<i32>,
+                consistent_read: Option<bool>,
             }
 
             impl<'a> #query_struct<'a> {
                 fn new(table: &'a #table_struct) -> #hash_key_struct {
-                    let q = #query_struct { table, index_name: #index_name_init, hk: None, qs: None };
+                    let q = #query_struct {
+                        table,
+                        index_name: #index_name_init,
+                        hk: None,
+                        qs: None,
+                        scan_index_forward: None,
+                        limit: None,
+                        consistent_read: None,
+                    };
                     #hash_key_struct { q }
                 }
             }
@@ -273,18 +297,39 @@ pub fn create_query_builder(
         #( #chunks )*
 
         impl<'a> #query_struct<'a> {
+            fn scan_index_forward(mut self, v: bool) -> Self {
+                self.scan_index_forward = Some(v);
+                self
+            }
+
+            fn limit(mut self, v: i32) -> Self {
+                self.limit = Some(v);
+                self
+            }
+
+            fn consistent_read(mut self, v: bool) -> Self {
+                self.consistent_read = Some(v);
+                self
+            }
+
             async fn send(self) -> impl ::aymond::shim::futures::Stream<Item = Result<#item_struct, #aws_sdk_dynamodb::error::SdkError<
                 #aws_sdk_dynamodb::operation::query::QueryError,
                 #aws_sdk_dynamodb::config::http::HttpResponse
             >>> + 'a
             {
                 let index_name = self.index_name.clone();
+                let scan_index_forward = self.scan_index_forward;
+                let limit = self.limit;
+                let consistent_read = self.consistent_read;
                 let query = self.table.client.query();
                 let table_name = &self.table.table_name;
                 let (key_expr, attr_names, attr_values) = self.into();
                 let pagination = query
                     .table_name(table_name)
                     .set_index_name(index_name.clone())
+                    .set_scan_index_forward(scan_index_forward)
+                    .set_limit(limit)
+                    .set_consistent_read(consistent_read)
                     .set_key_condition_expression(Some(key_expr))
                     .set_expression_attribute_names(Some(attr_names))
                     .set_expression_attribute_values(Some(attr_values))
@@ -311,7 +356,17 @@ pub fn create_query_builder(
                 -> #aws_sdk_dynamodb::operation::query::builders::QueryFluentBuilder
             {
                 let index_name = self.index_name.clone();
-                let query = f(self.table.client.query());
+                let scan_index_forward = self.scan_index_forward;
+                let limit = self.limit;
+                let consistent_read = self.consistent_read;
+                let query = f(
+                    self.table
+                        .client
+                        .query()
+                        .set_scan_index_forward(scan_index_forward)
+                        .set_limit(limit)
+                        .set_consistent_read(consistent_read),
+                );
                 let table_name = &self.table.table_name;
                 let (key_expr, attr_names, attr_values) = self.into();
                 query

@@ -66,9 +66,12 @@ async fn test() {
         .query()
         .make("Porsche")
         .model_gt("9")
-        .raw(|r| r.scan_index_forward(false))
+        .scan_index_forward(false)
+        .consistent_read(true)
+        .limit(1)
+        .send()
         .await;
-    let query: Vec<Car> = res.unwrap().items().iter().map(|e| e.into()).collect();
+    let query: Vec<Car> = res.map(|e| e.ok().unwrap()).collect().await;
     assert_eq!(query, vec![it_factory()]);
 
     // ── Condition expression tests ──

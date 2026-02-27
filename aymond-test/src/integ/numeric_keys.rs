@@ -35,8 +35,11 @@ async fn test() {
         .query()
         .row(10)
         .col_gt(10)
-        .raw(|r| r.scan_index_forward(false))
+        .scan_index_forward(false)
+        .consistent_read(true)
+        .limit(1)
+        .send()
         .await;
-    let query: Vec<Cell> = res.unwrap().items().iter().map(|e| e.into()).collect();
+    let query: Vec<Cell> = res.map(|e| e.ok().unwrap()).collect().await;
     assert_eq!(query, vec![it_factory()]);
 }

@@ -33,7 +33,14 @@ async fn test() {
     let query: Vec<Car> = res.map(|e| e.ok().unwrap()).collect().await;
     assert_eq!(query, vec![it_factory()]);
 
-    let res = table.query().make("Porsche").raw(|r| r.limit(1)).await;
-    let query: Vec<Car> = res.unwrap().items().iter().map(|e| e.into()).collect();
+    let res = table
+        .query()
+        .make("Porsche")
+        .scan_index_forward(false)
+        .consistent_read(true)
+        .limit(1)
+        .send()
+        .await;
+    let query: Vec<Car> = res.map(|e| e.ok().unwrap()).collect().await;
     assert_eq!(query, vec![it_factory()]);
 }
