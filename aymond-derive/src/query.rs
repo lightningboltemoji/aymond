@@ -41,7 +41,7 @@ pub fn create_index_query_builders(item: &ItemDefinition) -> TokenStream {
         let method_name = format_ident!("query_{}", normalized);
         chunks.push(quote! {
             impl<'a> #table_struct {
-                fn #method_name(&'a self) -> #index_hk_struct<'a> {
+                pub fn #method_name(&'a self) -> #index_hk_struct<'a> {
                     #index_query_struct::new(self)
                 }
             }
@@ -72,7 +72,7 @@ pub fn create_index_query_builders(item: &ItemDefinition) -> TokenStream {
         let method_name = format_ident!("query_{}", normalized);
         chunks.push(quote! {
             impl<'a> #table_struct {
-                fn #method_name(&'a self) -> #index_hk_struct<'a> {
+                pub fn #method_name(&'a self) -> #index_hk_struct<'a> {
                     #index_query_struct::new(self)
                 }
             }
@@ -118,11 +118,11 @@ pub fn create_query_builder(
         let sort_key_c_boxer = sort_key_attr.to_attribute_value(&parse_quote!(self.c.unwrap()));
 
         chunks.push(quote! {
-            struct #hash_key_struct<'a> {
+            pub struct #hash_key_struct<'a> {
                 q: #query_struct<'a>,
             }
 
-            struct #query_struct<'a> {
+            pub struct #query_struct<'a> {
                 table: &'a #table_struct,
                 index_name: Option<String>,
                 hk: Option<#hash_key_typ>,
@@ -152,13 +152,13 @@ pub fn create_query_builder(
             }
 
             impl<'a> #hash_key_struct<'a> {
-                fn #hash_key_ident (mut self, v: impl Into<#hash_key_typ>) -> #sort_key_struct<'a> {
+                pub fn #hash_key_ident (mut self, v: impl Into<#hash_key_typ>) -> #sort_key_struct<'a> {
                     self.q.hk = Some(v.into());
                     #sort_key_struct { q: self.q }
                 }
             }
 
-            struct #sort_key_struct<'a> {
+            pub struct #sort_key_struct<'a> {
                 q: #query_struct<'a>,
             }
 
@@ -222,7 +222,7 @@ pub fn create_query_builder(
             let fn_name = format_ident!("{}_{}", sort_key_ident, suffix);
             chunks.push(quote! {
                 impl<'a> #sort_key_struct<'a> {
-                    fn #fn_name (mut self, #( #vars: impl Into<#sort_key_typ>, )*) -> #query_struct<'a> {
+                    pub fn #fn_name (mut self, #( #vars: impl Into<#sort_key_typ>, )*) -> #query_struct<'a> {
                         self.q.qs = Some(#key_expression.into());
                         #( self.q.#vars = Some(#vars.into()); )*
                         self.q
@@ -232,11 +232,11 @@ pub fn create_query_builder(
         }
     } else {
         chunks.push(quote! {
-            struct #hash_key_struct<'a> {
+            pub struct #hash_key_struct<'a> {
                 q: #query_struct<'a>,
             }
 
-            struct #query_struct<'a> {
+            pub struct #query_struct<'a> {
                 table: &'a #table_struct,
                 index_name: Option<String>,
                 hk: Option<#hash_key_typ>,
@@ -262,7 +262,7 @@ pub fn create_query_builder(
             }
 
             impl<'a> #hash_key_struct<'a> {
-                fn #hash_key_ident (mut self, v: impl Into<#hash_key_typ>) -> #query_struct<'a> {
+                pub fn #hash_key_ident (mut self, v: impl Into<#hash_key_typ>) -> #query_struct<'a> {
                     self.q.hk = Some(v.into());
                     self.q.qs = Some("#hk = :hk".into());
                     self.q
@@ -297,22 +297,22 @@ pub fn create_query_builder(
         #( #chunks )*
 
         impl<'a> #query_struct<'a> {
-            fn scan_index_forward(mut self, v: bool) -> Self {
+            pub fn scan_index_forward(mut self, v: bool) -> Self {
                 self.scan_index_forward = Some(v);
                 self
             }
 
-            fn limit(mut self, v: i32) -> Self {
+            pub fn limit(mut self, v: i32) -> Self {
                 self.limit = Some(v);
                 self
             }
 
-            fn consistent_read(mut self, v: bool) -> Self {
+            pub fn consistent_read(mut self, v: bool) -> Self {
                 self.consistent_read = Some(v);
                 self
             }
 
-            async fn send(self) -> impl ::aymond::shim::futures::Stream<Item = Result<#item_struct, #aws_sdk_dynamodb::error::SdkError<
+            pub async fn send(self) -> impl ::aymond::shim::futures::Stream<Item = Result<#item_struct, #aws_sdk_dynamodb::error::SdkError<
                 #aws_sdk_dynamodb::operation::query::QueryError,
                 #aws_sdk_dynamodb::config::http::HttpResponse
             >>> + 'a
@@ -341,7 +341,7 @@ pub fn create_query_builder(
                 })
             }
 
-            async fn raw<F>(
+            pub async fn raw<F>(
                 self,
                 f: F,
             ) -> Result<

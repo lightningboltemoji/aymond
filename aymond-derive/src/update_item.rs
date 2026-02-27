@@ -68,11 +68,11 @@ pub fn create_update_builder(item: &ItemDefinition) -> TokenStream {
         };
 
         let builders = quote! {
-            struct #hash_key_struct<'a> {
+            pub struct #hash_key_struct<'a> {
                 q: #update_item_struct<'a>,
             }
 
-            struct #update_item_struct<'a> {
+            pub struct #update_item_struct<'a> {
                 table: &'a #table_struct,
                 hk: Option<#hash_key_typ>,
                 sk: Option<#sort_key_typ>,
@@ -94,18 +94,18 @@ pub fn create_update_builder(item: &ItemDefinition) -> TokenStream {
             }
 
             impl<'a> #hash_key_struct<'a> {
-                fn #hash_key_ident(mut self, v: impl Into<#hash_key_typ>) -> #sort_key_struct<'a> {
+                pub fn #hash_key_ident(mut self, v: impl Into<#hash_key_typ>) -> #sort_key_struct<'a> {
                     self.q.hk = Some(v.into());
                     #sort_key_struct { q: self.q }
                 }
             }
 
-            struct #sort_key_struct<'a> {
+            pub struct #sort_key_struct<'a> {
                 q: #update_item_struct<'a>,
             }
 
             impl<'a> #sort_key_struct<'a> {
-                fn #sort_key_ident(mut self, sk: impl Into<#sort_key_typ>) -> #update_item_struct<'a> {
+                pub fn #sort_key_ident(mut self, sk: impl Into<#sort_key_typ>) -> #update_item_struct<'a> {
                     self.q.sk = Some(sk.into());
                     self.q
                 }
@@ -120,11 +120,11 @@ pub fn create_update_builder(item: &ItemDefinition) -> TokenStream {
         };
 
         let builders = quote! {
-            struct #hash_key_struct<'a> {
+            pub struct #hash_key_struct<'a> {
                 q: #update_item_struct<'a>,
             }
 
-            struct #update_item_struct<'a> {
+            pub struct #update_item_struct<'a> {
                 table: &'a #table_struct,
                 hk: Option<#hash_key_typ>,
                 cond: #condition_builder_struct,
@@ -144,7 +144,7 @@ pub fn create_update_builder(item: &ItemDefinition) -> TokenStream {
             }
 
             impl<'a> #hash_key_struct<'a> {
-                fn #hash_key_ident(mut self, v: impl Into<#hash_key_typ>) -> #update_item_struct<'a> {
+                pub fn #hash_key_ident(mut self, v: impl Into<#hash_key_typ>) -> #update_item_struct<'a> {
                     self.q.hk = Some(v.into());
                     self.q
                 }
@@ -176,7 +176,7 @@ pub fn create_update_builder(item: &ItemDefinition) -> TokenStream {
         #builders
 
         impl<'a> #update_item_struct<'a> {
-            fn expression<F, R>(mut self, f: F) -> #update_item_struct<'a>
+            pub fn expression<F, R>(mut self, f: F) -> #update_item_struct<'a>
             where
                 F: FnOnce(&#expression_builder_struct) -> R,
                 R: ::aymond::update::IntoOptionalUpdateExpr,
@@ -188,7 +188,7 @@ pub fn create_update_builder(item: &ItemDefinition) -> TokenStream {
                 self
             }
 
-            fn condition<F, R>(mut self, f: F) -> #update_item_struct<'a>
+            pub fn condition<F, R>(mut self, f: F) -> #update_item_struct<'a>
             where
                 F: FnOnce(&#condition_builder_struct) -> R,
                 R: ::aymond::condition::IntoOptionalCondExpr,
@@ -200,7 +200,7 @@ pub fn create_update_builder(item: &ItemDefinition) -> TokenStream {
                 self
             }
 
-            async fn send(self) -> Result<
+            pub async fn send(self) -> Result<
                 (),
                 #aws_sdk_dynamodb::error::SdkError<
                     #aws_sdk_dynamodb::operation::update_item::UpdateItemError,
@@ -211,7 +211,7 @@ pub fn create_update_builder(item: &ItemDefinition) -> TokenStream {
                 Ok(())
             }
 
-            async fn raw<F>(
+            pub async fn raw<F>(
                 self,
                 f: F,
             ) -> Result<

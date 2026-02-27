@@ -34,11 +34,11 @@ pub fn create_condition_check_builder(item: &ItemDefinition) -> TokenStream {
         };
 
         let builders = quote! {
-            struct #hash_key_struct<'a> {
+            pub struct #hash_key_struct<'a> {
                 q: #condition_check_struct<'a>,
             }
 
-            struct #condition_check_struct<'a> {
+            pub struct #condition_check_struct<'a> {
                 table: &'a #table_struct,
                 hk: Option<#hash_key_typ>,
                 sk: Option<#sort_key_typ>,
@@ -53,18 +53,18 @@ pub fn create_condition_check_builder(item: &ItemDefinition) -> TokenStream {
             }
 
             impl<'a> #hash_key_struct<'a> {
-                fn #hash_key_ident (mut self, v: impl Into<#hash_key_typ>) -> #sort_key_struct<'a> {
+                pub fn #hash_key_ident (mut self, v: impl Into<#hash_key_typ>) -> #sort_key_struct<'a> {
                     self.q.hk = Some(v.into());
                     #sort_key_struct { q: self.q }
                 }
             }
 
-            struct #sort_key_struct<'a> {
+            pub struct #sort_key_struct<'a> {
                 q: #condition_check_struct<'a>,
             }
 
             impl<'a> #sort_key_struct<'a> {
-                fn #sort_key_ident (mut self, sk: impl Into<#sort_key_typ>) -> #condition_check_struct<'a> {
+                pub fn #sort_key_ident (mut self, sk: impl Into<#sort_key_typ>) -> #condition_check_struct<'a> {
                     self.q.sk = Some(sk.into());
                     self.q
                 }
@@ -79,11 +79,11 @@ pub fn create_condition_check_builder(item: &ItemDefinition) -> TokenStream {
         };
 
         let builders = quote! {
-            struct #hash_key_struct<'a> {
+            pub struct #hash_key_struct<'a> {
                 q: #condition_check_struct<'a>,
             }
 
-            struct #condition_check_struct<'a> {
+            pub struct #condition_check_struct<'a> {
                 table: &'a #table_struct,
                 hk: Option<#hash_key_typ>,
                 cond: #condition_builder_struct,
@@ -97,7 +97,7 @@ pub fn create_condition_check_builder(item: &ItemDefinition) -> TokenStream {
             }
 
             impl<'a> #hash_key_struct<'a> {
-                fn #hash_key_ident (mut self, v: impl Into<#hash_key_typ>) -> #condition_check_struct<'a> {
+                pub fn #hash_key_ident (mut self, v: impl Into<#hash_key_typ>) -> #condition_check_struct<'a> {
                     self.q.hk = Some(v.into());
                     self.q
                 }
@@ -110,7 +110,7 @@ pub fn create_condition_check_builder(item: &ItemDefinition) -> TokenStream {
         #builders
 
         impl<'a> #condition_check_struct<'a> {
-            fn condition<F, R>(mut self, f: F) -> #condition_check_struct<'a>
+            pub fn condition<F, R>(mut self, f: F) -> #condition_check_struct<'a>
             where
                 F: FnOnce(&#condition_builder_struct) -> R,
                 R: ::aymond::condition::IntoOptionalCondExpr,

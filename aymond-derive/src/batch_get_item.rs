@@ -58,7 +58,7 @@ pub fn create_batch_get_builder(item: &ItemDefinition) -> TokenStream {
     };
 
     quote! {
-        struct #batch_get_struct<'a> {
+        pub struct #batch_get_struct<'a> {
             table: &'a #table_struct,
             keys: Vec<::std::collections::HashMap<String, #aws_sdk_dynamodb::types::AttributeValue>>,
         }
@@ -68,7 +68,7 @@ pub fn create_batch_get_builder(item: &ItemDefinition) -> TokenStream {
                 Self { table, keys: Vec::new() }
             }
 
-            #key_method_sig -> #batch_get_keys_struct<'a> {
+            pub #key_method_sig -> #batch_get_keys_struct<'a> {
                 #key_body
                 #batch_get_keys_struct {
                     table: self.table,
@@ -77,18 +77,18 @@ pub fn create_batch_get_builder(item: &ItemDefinition) -> TokenStream {
             }
         }
 
-        struct #batch_get_keys_struct<'a> {
+        pub struct #batch_get_keys_struct<'a> {
             table: &'a #table_struct,
             keys: Vec<::std::collections::HashMap<String, #aws_sdk_dynamodb::types::AttributeValue>>,
         }
 
         impl<'a> #batch_get_keys_struct<'a> {
-            #key_method_sig -> Self {
+            pub #key_method_sig -> Self {
                 #key_body
                 self
             }
 
-            async fn send(self) -> Result<
+            pub async fn send(self) -> Result<
                 Vec<#item_struct>,
                 #aws_sdk_dynamodb::error::SdkError<
                     #aws_sdk_dynamodb::operation::batch_get_item::BatchGetItemError,
@@ -103,8 +103,9 @@ pub fn create_batch_get_builder(item: &ItemDefinition) -> TokenStream {
                     let mut retries: u32 = 0;
 
                     loop {
+                        let request_keys = pending_keys;
                         let keys_and_attrs = #aws_sdk_dynamodb::types::KeysAndAttributes::builder()
-                            .set_keys(Some(pending_keys.clone()))
+                            .set_keys(Some(request_keys))
                             .build()
                             .unwrap();
 
@@ -139,7 +140,9 @@ pub fn create_batch_get_builder(item: &ItemDefinition) -> TokenStream {
                             Some(_) => {
                                 panic!("batch_get_item: unprocessed keys remain after 5 retries");
                             }
-                            None => break,
+                            None => {
+                                break;
+                            }
                         }
                     }
                 }
@@ -147,7 +150,7 @@ pub fn create_batch_get_builder(item: &ItemDefinition) -> TokenStream {
                 Ok(all_results)
             }
 
-            async fn raw<F>(
+            pub async fn raw<F>(
                 self,
                 f: F,
             ) -> Result<

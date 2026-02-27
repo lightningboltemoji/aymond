@@ -263,6 +263,7 @@ impl<T: IntoUpdateValue> ScalarUpdatePath<T> {
 }
 
 impl<T: IntoUpdateNumberValue + IntoUpdateValue> ScalarUpdatePath<T> {
+    #[allow(clippy::should_implement_trait)]
     pub fn add(self, v: impl Into<T>) -> UpdateExpr {
         UpdateExpr::add(self.path, v.into().into_update_number_value())
     }

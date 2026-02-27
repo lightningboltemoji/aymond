@@ -11,7 +11,7 @@ pub fn create_scan_builder(item: &ItemDefinition) -> TokenStream {
     let scan_struct = format_ident!("{}Scan", &item.name);
 
     quote! {
-        struct #scan_struct<'a> {
+        pub struct #scan_struct<'a> {
             table: &'a #table_struct,
         }
 
@@ -20,7 +20,7 @@ pub fn create_scan_builder(item: &ItemDefinition) -> TokenStream {
                 Self { table }
             }
 
-            async fn send(self) -> impl ::aymond::shim::futures::Stream<Item = Result<#item_struct, #aws_sdk_dynamodb::error::SdkError<
+            pub async fn send(self) -> impl ::aymond::shim::futures::Stream<Item = Result<#item_struct, #aws_sdk_dynamodb::error::SdkError<
                 #aws_sdk_dynamodb::operation::scan::ScanError,
                 #aws_sdk_dynamodb::config::http::HttpResponse
             >>> + 'a {
@@ -34,7 +34,7 @@ pub fn create_scan_builder(item: &ItemDefinition) -> TokenStream {
                 })
             }
 
-            async fn raw<F>(
+            pub async fn raw<F>(
                 self,
                 f: F,
             ) -> Result<

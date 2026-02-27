@@ -30,7 +30,7 @@ pub fn create_put_item_builder(item: &ItemDefinition) -> TokenStream {
     };
 
     quote! {
-        struct #put_item_struct<'a> {
+        pub struct #put_item_struct<'a> {
             table: &'a #table_struct,
             i: Option<#item_struct>,
             cond: #condition_builder_struct,
@@ -43,13 +43,13 @@ pub fn create_put_item_builder(item: &ItemDefinition) -> TokenStream {
         }
 
         impl<'a> #put_item_struct<'a> {
-            fn item(mut self, v: #item_struct) -> #put_item_struct<'a> {
+            pub fn item(mut self, v: #item_struct) -> #put_item_struct<'a> {
                 #set_version_in_item
                 self.i = Some(v);
                 self
             }
 
-            fn condition<F, R>(mut self, f: F) -> #put_item_struct<'a>
+            pub fn condition<F, R>(mut self, f: F) -> #put_item_struct<'a>
             where
                 F: FnOnce(&#condition_builder_struct) -> R,
                 R: ::aymond::condition::IntoOptionalCondExpr,
@@ -61,7 +61,7 @@ pub fn create_put_item_builder(item: &ItemDefinition) -> TokenStream {
                 self
             }
 
-            async fn raw<F>(
+            pub async fn raw<F>(
                 self,
                 f: F,
             ) -> Result<
@@ -91,7 +91,7 @@ pub fn create_put_item_builder(item: &ItemDefinition) -> TokenStream {
                     .await
             }
 
-            async fn send(self) -> Result<
+            pub async fn send(self) -> Result<
                 (),
                 #aws_sdk_dynamodb::error::SdkError<
                     #aws_sdk_dynamodb::operation::put_item::PutItemError,

@@ -64,7 +64,7 @@ pub fn create_table(item: &ItemDefinition) -> TokenStream {
         #condition_check
 
         #[derive(Debug)]
-        struct #table_struct {
+        pub struct #table_struct {
             client: ::std::sync::Arc<#aws_sdk_dynamodb::Client>,
             table_name: String,
         }

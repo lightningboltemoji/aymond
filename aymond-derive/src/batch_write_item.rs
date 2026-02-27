@@ -26,13 +26,13 @@ pub fn create_batch_write_builder(item: &ItemDefinition) -> TokenStream {
         let sort_key_boxer = sort_key.to_attribute_value(&parse_quote!(sk_val));
 
         let builders = quote! {
-            struct #delete_hash_key_struct<'a> {
+            pub struct #delete_hash_key_struct<'a> {
                 table: &'a #table_struct,
                 ops: Vec<#aws_sdk_dynamodb::types::WriteRequest>,
             }
 
             impl<'a> #delete_hash_key_struct<'a> {
-                fn #hash_key_ident(self, v: impl Into<#hash_key_typ>) -> #delete_sort_key_struct<'a> {
+                pub fn #hash_key_ident(self, v: impl Into<#hash_key_typ>) -> #delete_sort_key_struct<'a> {
                     #delete_sort_key_struct {
                         table: self.table,
                         ops: self.ops,
@@ -41,14 +41,14 @@ pub fn create_batch_write_builder(item: &ItemDefinition) -> TokenStream {
                 }
             }
 
-            struct #delete_sort_key_struct<'a> {
+            pub struct #delete_sort_key_struct<'a> {
                 table: &'a #table_struct,
                 ops: Vec<#aws_sdk_dynamodb::types::WriteRequest>,
                 hk: #hash_key_typ,
             }
 
             impl<'a> #delete_sort_key_struct<'a> {
-                fn #sort_key_ident(mut self, v: impl Into<#sort_key_typ>) -> #batch_write_ops_struct<'a> {
+                pub fn #sort_key_ident(mut self, v: impl Into<#sort_key_typ>) -> #batch_write_ops_struct<'a> {
                     let hk_val = self.hk;
                     let sk_val: #sort_key_typ = v.into();
                     let mut key = ::std::collections::HashMap::new();
@@ -73,7 +73,7 @@ pub fn create_batch_write_builder(item: &ItemDefinition) -> TokenStream {
         };
 
         let initial_delete = quote! {
-            fn delete(self) -> #delete_hash_key_struct<'a> {
+            pub fn delete(self) -> #delete_hash_key_struct<'a> {
                 #delete_hash_key_struct {
                     table: self.table,
                     ops: Vec::new(),
@@ -82,7 +82,7 @@ pub fn create_batch_write_builder(item: &ItemDefinition) -> TokenStream {
         };
 
         let ops_delete = quote! {
-            fn delete(self) -> #delete_hash_key_struct<'a> {
+            pub fn delete(self) -> #delete_hash_key_struct<'a> {
                 #delete_hash_key_struct {
                     table: self.table,
                     ops: self.ops,
@@ -93,13 +93,13 @@ pub fn create_batch_write_builder(item: &ItemDefinition) -> TokenStream {
         (builders, initial_delete, ops_delete)
     } else {
         let builders = quote! {
-            struct #delete_hash_key_struct<'a> {
+            pub struct #delete_hash_key_struct<'a> {
                 table: &'a #table_struct,
                 ops: Vec<#aws_sdk_dynamodb::types::WriteRequest>,
             }
 
             impl<'a> #delete_hash_key_struct<'a> {
-                fn #hash_key_ident(mut self, v: impl Into<#hash_key_typ>) -> #batch_write_ops_struct<'a> {
+                pub fn #hash_key_ident(mut self, v: impl Into<#hash_key_typ>) -> #batch_write_ops_struct<'a> {
                     let hk_val: #hash_key_typ = v.into();
                     let mut key = ::std::collections::HashMap::new();
                     key.insert(#hash_key_attr_name.to_string(), #hash_key_boxer);
@@ -122,7 +122,7 @@ pub fn create_batch_write_builder(item: &ItemDefinition) -> TokenStream {
         };
 
         let initial_delete = quote! {
-            fn delete(self) -> #delete_hash_key_struct<'a> {
+            pub fn delete(self) -> #delete_hash_key_struct<'a> {
                 #delete_hash_key_struct {
                     table: self.table,
                     ops: Vec::new(),
@@ -131,7 +131,7 @@ pub fn create_batch_write_builder(item: &ItemDefinition) -> TokenStream {
         };
 
         let ops_delete = quote! {
-            fn delete(self) -> #delete_hash_key_struct<'a> {
+            pub fn delete(self) -> #delete_hash_key_struct<'a> {
                 #delete_hash_key_struct {
                     table: self.table,
                     ops: self.ops,
@@ -145,7 +145,7 @@ pub fn create_batch_write_builder(item: &ItemDefinition) -> TokenStream {
     quote! {
         #delete_builders
 
-        struct #batch_write_struct<'a> {
+        pub struct #batch_write_struct<'a> {
             table: &'a #table_struct,
         }
 
@@ -154,7 +154,7 @@ pub fn create_batch_write_builder(item: &ItemDefinition) -> TokenStream {
                 Self { table }
             }
 
-            fn put(self, item: #item_struct) -> #batch_write_ops_struct<'a> {
+            pub fn put(self, item: #item_struct) -> #batch_write_ops_struct<'a> {
                 let wr = #aws_sdk_dynamodb::types::WriteRequest::builder()
                     .put_request(
                         #aws_sdk_dynamodb::types::PutRequest::builder()
@@ -172,13 +172,13 @@ pub fn create_batch_write_builder(item: &ItemDefinition) -> TokenStream {
             #initial_delete
         }
 
-        struct #batch_write_ops_struct<'a> {
+        pub struct #batch_write_ops_struct<'a> {
             table: &'a #table_struct,
             ops: Vec<#aws_sdk_dynamodb::types::WriteRequest>,
         }
 
         impl<'a> #batch_write_ops_struct<'a> {
-            fn put(mut self, item: #item_struct) -> Self {
+            pub fn put(mut self, item: #item_struct) -> Self {
                 let wr = #aws_sdk_dynamodb::types::WriteRequest::builder()
                     .put_request(
                         #aws_sdk_dynamodb::types::PutRequest::builder()
@@ -193,7 +193,7 @@ pub fn create_batch_write_builder(item: &ItemDefinition) -> TokenStream {
 
             #ops_delete
 
-            async fn send(self) -> Result<
+            pub async fn send(self) -> Result<
                 (),
                 #aws_sdk_dynamodb::error::SdkError<
                     #aws_sdk_dynamodb::operation::batch_write_item::BatchWriteItemError,
@@ -205,8 +205,9 @@ pub fn create_batch_write_builder(item: &ItemDefinition) -> TokenStream {
                     let mut retries: u32 = 0;
 
                     loop {
+                        let request_items = pending;
                         let res = self.table.client.batch_write_item()
-                            .request_items(&self.table.table_name, pending.clone())
+                            .request_items(&self.table.table_name, request_items)
                             .send()
                             .await?;
 
@@ -227,7 +228,9 @@ pub fn create_batch_write_builder(item: &ItemDefinition) -> TokenStream {
                             Some(_) => {
                                 panic!("batch_write_item: unprocessed items remain after 5 retries");
                             }
-                            None => break,
+                            None => {
+                                break;
+                            }
                         }
                     }
                 }
@@ -235,7 +238,7 @@ pub fn create_batch_write_builder(item: &ItemDefinition) -> TokenStream {
                 Ok(())
             }
 
-            async fn raw<F>(
+            pub async fn raw<F>(
                 self,
                 f: F,
             ) -> Result<
