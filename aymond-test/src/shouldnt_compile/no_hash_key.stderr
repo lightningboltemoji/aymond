@@ -1,7 +1,5 @@
-error: custom attribute panicked
- --> src/shouldnt_compile/no_hash_key.rs:3:1
+error: #[aymond(hash_key)] is required for #[aymond(item)]
+ --> src/shouldnt_compile/no_hash_key.rs:4:8
   |
-3 | #[aymond(item)]
-  | ^^^^^^^^^^^^^^^
-  |
-  = help: message: #[aymond(hash_key)] must be defined
+4 | struct Car {
+  |        ^^^

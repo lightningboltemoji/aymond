@@ -1,7 +1,5 @@
-error: custom attribute panicked
- --> src/shouldnt_compile/option_hash_key.rs:3:1
+error: #[aymond(hash_key)] field cannot be Option<T>
+ --> src/shouldnt_compile/option_hash_key.rs:6:11
   |
-3 | #[aymond(item)]
-  | ^^^^^^^^^^^^^^^
-  |
-  = help: message: Hash key cannot be Option type
+6 |     make: Option<String>,
+  |           ^^^^^^^^^^^^^^

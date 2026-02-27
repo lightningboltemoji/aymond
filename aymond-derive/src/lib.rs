@@ -51,24 +51,32 @@ pub fn aymond(args: TokenStream, input: TokenStream) -> TokenStream {
     });
     parse_macro_input!(args with arg_parser);
 
-    let chunks: Vec<proc_macro2::TokenStream> = match (item, nested_item, table) {
-        (false, false, false) => panic!("Must specify attribute e.g. #[aymond(item)]"),
-        (true, true, _) => panic!("Can't specify both item and nested_item"),
-        (false, _, true) => panic!("Can't specify table without item"),
-        (_, true, _) => vec![create_nested_item(&mut input)],
-        (true, _, false) => {
-            let (item, _) = create_item(&mut input);
-            vec![item]
-        }
-        (true, _, true) => {
-            let (item, def) = create_item(&mut input);
+    let chunks: syn::Result<Vec<proc_macro2::TokenStream>> = match (item, nested_item, table) {
+        (false, false, false) => Err(syn::Error::new_spanned(
+            &input.ident,
+            "missing mode in #[aymond(...)]; expected one of: item or nested_item",
+        )),
+        (true, true, _) => Err(syn::Error::new_spanned(
+            &input.ident,
+            "#[aymond(item)] and #[aymond(nested_item)] cannot be combined",
+        )),
+        (false, _, true) => Err(syn::Error::new_spanned(
+            &input.ident,
+            "#[aymond(table)] requires #[aymond(item)]",
+        )),
+        (_, true, _) => create_nested_item(&mut input).map(|item| vec![item]),
+        (true, _, false) => create_item(&mut input).map(|(item, _)| vec![item]),
+        (true, _, true) => create_item(&mut input).map(|(item, def)| {
             let table = create_table(&def);
             vec![quote!(#item), quote!(#table)]
-        }
+        }),
     };
 
-    quote! {
-        #( #chunks )*
+    match chunks {
+        Ok(chunks) => quote! {
+            #( #chunks )*
+        }
+        .into(),
+        Err(err) => err.to_compile_error().into(),
     }
-    .into()
 }

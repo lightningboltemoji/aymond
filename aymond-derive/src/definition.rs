@@ -41,6 +41,14 @@ pub struct ItemDefinition {
     pub version_attribute: Option<ItemAttribute>,
 }
 
+fn combine_error(errors: &mut Option<syn::Error>, err: syn::Error) {
+    if let Some(existing) = errors {
+        existing.combine(err);
+    } else {
+        *errors = Some(err);
+    }
+}
+
 impl ItemAttribute {
     pub fn new(field: Ident, ddb_name: String, ty: Type) -> Self {
         let generics_hierarchy = Self::generics_hierarchy(&ty);
@@ -300,15 +308,25 @@ impl ItemAttribute {
 }
 
 impl ItemDefinition {
-    pub fn new(ast: &mut DeriveInput, nested: bool) -> Self {
+    pub fn new(ast: &mut DeriveInput, nested: bool) -> syn::Result<Self> {
         let name = ast.ident.to_string();
         let data_struct = match &mut ast.data {
             Data::Struct(data_struct) => data_struct,
-            _ => panic!("Only structs are supported"),
+            _ => {
+                return Err(syn::Error::new_spanned(
+                    &ast.ident,
+                    "#[aymond(...)] supports only structs",
+                ));
+            }
         };
         let fields_named = match &mut data_struct.fields {
             Fields::Named(fields_named) => fields_named,
-            _ => panic!("Only named fields are supported"),
+            _ => {
+                return Err(syn::Error::new_spanned(
+                    &ast.ident,
+                    "#[aymond(...)] supports only structs with named fields",
+                ));
+            }
         };
 
         let mut hash_key = None;
@@ -317,6 +335,7 @@ impl ItemDefinition {
         let mut gsis: HashMap<String, GsiDefinition> = HashMap::new();
         let mut lsis: HashMap<String, LsiDefinition> = HashMap::new();
         let mut version_attribute = None;
+        let mut errors = None;
 
         for field in &mut fields_named.named {
             let aymond_attrs: Vec<_> = field
@@ -331,56 +350,127 @@ impl ItemDefinition {
             let mut is_version = false;
             let mut gsi_entries: Vec<(String, GsiRole)> = vec![];
             let mut lsi_entries: Vec<String> = vec![];
+            let mut field_has_error = false;
 
             for attr in &aymond_attrs {
-                let inner: Meta = attr
-                    .parse_args()
-                    .expect("Invalid #[aymond(...)] field annotation");
+                let inner: Meta = match attr.parse_args() {
+                    Ok(meta) => meta,
+                    Err(err) => {
+                        combine_error(
+                            &mut errors,
+                            syn::Error::new_spanned(
+                                attr,
+                                format!("invalid #[aymond(...)] field annotation: {err}"),
+                            ),
+                        );
+                        field_has_error = true;
+                        continue;
+                    }
+                };
                 match &inner {
                     Meta::Path(p) if p.is_ident("hash_key") => is_hash = true,
                     Meta::Path(p) if p.is_ident("sort_key") => is_sort = true,
                     Meta::List(list) if list.path.is_ident("hash_key") => {
                         is_hash = true;
-                        custom_name = Self::extract_attribute_name(list);
+                        match Self::extract_attribute_name(list) {
+                            Ok(name) => custom_name = name,
+                            Err(err) => {
+                                combine_error(&mut errors, err);
+                                field_has_error = true;
+                            }
+                        }
                     }
                     Meta::List(list) if list.path.is_ident("sort_key") => {
                         is_sort = true;
-                        custom_name = Self::extract_attribute_name(list);
+                        match Self::extract_attribute_name(list) {
+                            Ok(name) => custom_name = name,
+                            Err(err) => {
+                                combine_error(&mut errors, err);
+                                field_has_error = true;
+                            }
+                        }
                     }
                     Meta::List(list) if list.path.is_ident("attribute") => {
-                        let (name, version) = Self::extract_attribute_args(list);
-                        custom_name = name;
-                        is_version = version;
+                        match Self::extract_attribute_args(list) {
+                            Ok((name, version)) => {
+                                custom_name = name;
+                                is_version = version;
+                            }
+                            Err(err) => {
+                                combine_error(&mut errors, err);
+                                field_has_error = true;
+                            }
+                        }
                     }
-                    Meta::List(list)
-                        if list.path.is_ident("global_secondary_index")
-                            || list.path.is_ident("gsi") =>
-                    {
-                        gsi_entries.push(Self::parse_gsi_args(list));
+                    Meta::List(list) if list.path.is_ident("gsi") => {
+                        match Self::parse_gsi_args(list) {
+                            Ok(args) => gsi_entries.push(args),
+                            Err(err) => {
+                                combine_error(&mut errors, err);
+                                field_has_error = true;
+                            }
+                        }
                     }
-                    Meta::List(list)
-                        if list.path.is_ident("local_secondary_index")
-                            || list.path.is_ident("lsi") =>
-                    {
-                        lsi_entries.push(Self::parse_lsi_args(list));
+                    Meta::List(list) if list.path.is_ident("lsi") => {
+                        match Self::parse_lsi_args(list) {
+                            Ok(name) => lsi_entries.push(name),
+                            Err(err) => {
+                                combine_error(&mut errors, err);
+                                field_has_error = true;
+                            }
+                        }
                     }
-                    _ => panic!(
-                        "Unknown #[aymond(...)] field annotation. Expected hash_key, sort_key, attribute(...), global_secondary_index(...)/gsi(...), or local_secondary_index(...)/lsi(...)"
-                    ),
+                    _ => {
+                        combine_error(
+                            &mut errors,
+                            syn::Error::new_spanned(
+                                &inner,
+                                "unknown #[aymond(...)] field annotation; expected one of: \
+                                 hash_key, sort_key, attribute(...), gsi(...), lsi(...)",
+                            ),
+                        );
+                        field_has_error = true;
+                    }
                 }
             }
 
-            if is_hash && hash_key.is_some() {
-                panic!("Multiple attributes with #[aymond(hash_key)]");
-            } else if is_sort && sort_key.is_some() {
-                panic!("Multiple attributes with #[aymond(sort_key)]");
+            if field_has_error {
+                field
+                    .attrs
+                    .retain(|attr_def| !attr_def.path().is_ident("aymond"));
+                continue;
             }
 
-            let field_name = field.ident.as_ref().unwrap().to_string();
+            if is_hash && hash_key.is_some() {
+                combine_error(
+                    &mut errors,
+                    syn::Error::new_spanned(
+                        &field.ident,
+                        "multiple fields are marked with #[aymond(hash_key)]",
+                    ),
+                );
+            } else if is_sort && sort_key.is_some() {
+                combine_error(
+                    &mut errors,
+                    syn::Error::new_spanned(
+                        &field.ident,
+                        "multiple fields are marked with #[aymond(sort_key)]",
+                    ),
+                );
+            }
+
+            let Some(field_ident) = field.ident.clone() else {
+                combine_error(
+                    &mut errors,
+                    syn::Error::new_spanned(field, "field must be named"),
+                );
+                continue;
+            };
+            let field_name = field_ident.to_string();
             let attr_name = custom_name.unwrap_or_else(|| field_name.clone());
 
             let ty = field.ty.clone();
-            let item_attribute = ItemAttribute::new(field.ident.clone().unwrap(), attr_name, ty);
+            let item_attribute = ItemAttribute::new(field_ident, attr_name, ty);
 
             for (idx_name, role) in gsi_entries {
                 let def = gsis
@@ -410,13 +500,31 @@ impl ItemDefinition {
                     "i8", "i16", "i32", "i64", "i128", "u8", "u16", "u32", "u64", "u128",
                 ];
                 if !numeric_types.contains(&item_attribute.generics_hierarchy[0].as_str()) {
-                    panic!("#[aymond(attribute(version))] field must be a numeric type");
+                    combine_error(
+                        &mut errors,
+                        syn::Error::new_spanned(
+                            &item_attribute.field,
+                            "#[aymond(attribute(version))] field must be a numeric type",
+                        ),
+                    );
                 }
                 if item_attribute.is_option {
-                    panic!("#[aymond(attribute(version))] field cannot be Option");
+                    combine_error(
+                        &mut errors,
+                        syn::Error::new_spanned(
+                            &item_attribute.field,
+                            "#[aymond(attribute(version))] field cannot be Option",
+                        ),
+                    );
                 }
                 if version_attribute.is_some() {
-                    panic!("Multiple attributes with #[aymond(attribute(version))]");
+                    combine_error(
+                        &mut errors,
+                        syn::Error::new_spanned(
+                            &item_attribute.field,
+                            "multiple fields are marked with #[aymond(attribute(version))]",
+                        ),
+                    );
                 }
                 version_attribute = Some(item_attribute.clone());
             }
@@ -430,9 +538,21 @@ impl ItemDefinition {
             }
 
             if hash_key.as_ref().filter(|e| e.is_option).is_some() {
-                panic!("Hash key cannot be Option type");
+                combine_error(
+                    &mut errors,
+                    syn::Error::new_spanned(
+                        &field.ty,
+                        "#[aymond(hash_key)] field cannot be Option<T>",
+                    ),
+                );
             } else if sort_key.as_ref().filter(|e| e.is_option).is_some() {
-                panic!("Sort key cannot be Option type");
+                combine_error(
+                    &mut errors,
+                    syn::Error::new_spanned(
+                        &field.ty,
+                        "#[aymond(sort_key)] field cannot be Option<T>",
+                    ),
+                );
             }
 
             field
@@ -440,13 +560,21 @@ impl ItemDefinition {
                 .retain(|attr_def| !attr_def.path().is_ident("aymond"));
         }
 
-        if !nested {
-            hash_key
-                .as_ref()
-                .expect("#[aymond(hash_key)] must be defined");
+        if !nested && hash_key.is_none() {
+            combine_error(
+                &mut errors,
+                syn::Error::new_spanned(
+                    &ast.ident,
+                    "#[aymond(hash_key)] is required for #[aymond(item)]",
+                ),
+            );
         }
 
-        ItemDefinition {
+        if let Some(err) = errors {
+            return Err(err);
+        }
+
+        Ok(ItemDefinition {
             name,
             hash_key,
             sort_key,
@@ -454,7 +582,7 @@ impl ItemDefinition {
             global_secondary_indexes: gsis,
             local_secondary_indexes: lsis,
             version_attribute,
-        }
+        })
     }
 
     pub fn all_attributes(&self) -> impl Iterator<Item = &ItemAttribute> {
@@ -464,7 +592,7 @@ impl ItemDefinition {
             .chain(self.other_attributes.iter())
     }
 
-    fn parse_gsi_args(list: &MetaList) -> (String, GsiRole) {
+    fn parse_gsi_args(list: &MetaList) -> syn::Result<(String, GsiRole)> {
         struct GsiArgs {
             name: LitStr,
             role: Path,
@@ -477,36 +605,55 @@ impl ItemDefinition {
                 Ok(GsiArgs { name, role })
             }
         }
-        let args: GsiArgs = list
-            .parse_args()
-            .expect("Invalid GSI annotation. Expected: gsi(\"name\", hash_key|sort_key)");
+        let args: GsiArgs = list.parse_args().map_err(|err| {
+            syn::Error::new_spanned(
+                list,
+                format!(
+                    "invalid gsi annotation; expected: gsi(\"name\", hash_key | sort_key): {err}"
+                ),
+            )
+        })?;
         let name = args.name.value();
         let role = if args.role.is_ident("hash_key") {
             GsiRole::HashKey
         } else if args.role.is_ident("sort_key") {
             GsiRole::SortKey
         } else {
-            panic!("Invalid GSI role. Expected hash_key or sort_key")
+            return Err(syn::Error::new_spanned(
+                args.role,
+                "invalid GSI role; expected hash_key or sort_key",
+            ));
         };
-        (name, role)
+        Ok((name, role))
     }
 
-    fn parse_lsi_args(list: &MetaList) -> String {
-        let name: LitStr = list
-            .parse_args()
-            .expect("Invalid LSI annotation. Expected: lsi(\"name\")");
-        name.value()
+    fn parse_lsi_args(list: &MetaList) -> syn::Result<String> {
+        let name: LitStr = list.parse_args().map_err(|err| {
+            syn::Error::new_spanned(
+                list,
+                format!("invalid lsi annotation; expected: lsi(\"name\"): {err}"),
+            )
+        })?;
+        Ok(name.value())
     }
 
     /// Parses `attribute(...)` args, returning `(custom_name, is_version)`.
     /// Supports: `attribute(name = "x")`, `attribute(version)`, `attribute(name = "x", version)`.
-    fn extract_attribute_args(list: &MetaList) -> (Option<String>, bool) {
+    fn extract_attribute_args(list: &MetaList) -> syn::Result<(Option<String>, bool)> {
         let mut custom_name = None;
         let mut is_version = false;
 
         let metas = list
             .parse_args_with(Punctuated::<Meta, Token![,]>::parse_terminated)
-            .expect("Invalid #[aymond(attribute(...))] syntax");
+            .map_err(|err| {
+                syn::Error::new_spanned(
+                    list,
+                    format!(
+                        "invalid #[aymond(attribute(...))] syntax; expected \
+                         attribute(name = \"...\") and/or attribute(version): {err}"
+                    ),
+                )
+            })?;
 
         for meta in metas {
             match &meta {
@@ -515,21 +662,29 @@ impl ItemDefinition {
                         && let Lit::Str(s) = &expr_lit.lit
                     {
                         custom_name = Some(s.value());
+                    } else {
+                        return Err(syn::Error::new_spanned(
+                            nv,
+                            "invalid attribute name value; expected name = \"...\"",
+                        ));
                     }
                 }
                 Meta::Path(p) if p.is_ident("version") => {
                     is_version = true;
                 }
-                _ => panic!(
-                    "Unknown attribute arg in #[aymond(attribute(...))]. Expected `name = \"...\"` or `version`"
-                ),
+                _ => {
+                    return Err(syn::Error::new_spanned(
+                        meta,
+                        "unknown attribute argument; expected `name = \"...\"` or `version`",
+                    ));
+                }
             }
         }
 
-        (custom_name, is_version)
+        Ok((custom_name, is_version))
     }
 
-    fn extract_attribute_name(list: &MetaList) -> Option<String> {
-        Self::extract_attribute_args(list).0
+    fn extract_attribute_name(list: &MetaList) -> syn::Result<Option<String>> {
+        Ok(Self::extract_attribute_args(list)?.0)
     }
 }

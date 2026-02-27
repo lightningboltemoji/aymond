@@ -4,18 +4,18 @@ use syn::DeriveInput;
 
 use crate::{ItemDefinition, marshal};
 
-pub fn create_nested_item(input: &mut DeriveInput) -> TokenStream {
-    let def = ItemDefinition::new(input, true);
+pub fn create_nested_item(input: &mut DeriveInput) -> syn::Result<TokenStream> {
+    let def = ItemDefinition::new(input, true)?;
     let from_into = marshal::from_into_item_structure(&def);
     let condition_path = create_condition_path(&def);
     let update_path = create_update_path(&def);
-    quote! {
+    Ok(quote! {
         #[derive(Debug, PartialEq)]
         #input
         #from_into
         #condition_path
         #update_path
-    }
+    })
 }
 
 pub fn create_condition_path(def: &ItemDefinition) -> TokenStream {

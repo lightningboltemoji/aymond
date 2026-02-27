@@ -4,10 +4,10 @@ use syn::{DeriveInput, Expr, parse_quote};
 
 use crate::{ItemDefinition, marshal};
 
-pub fn create_item(input: &mut DeriveInput) -> (TokenStream, ItemDefinition) {
+pub fn create_item(input: &mut DeriveInput) -> syn::Result<(TokenStream, ItemDefinition)> {
     let aws_sdk_dynamodb: Expr = parse_quote!(::aymond::shim::aws_sdk_dynamodb);
 
-    let def = ItemDefinition::new(input, false);
+    let def = ItemDefinition::new(input, false)?;
     let name = format_ident!("{}", def.name);
 
     let key_itr = || def.hash_key.iter().chain(def.sort_key.iter());
@@ -55,5 +55,5 @@ pub fn create_item(input: &mut DeriveInput) -> (TokenStream, ItemDefinition) {
             }
         }
     };
-    (item, def)
+    Ok((item, def))
 }

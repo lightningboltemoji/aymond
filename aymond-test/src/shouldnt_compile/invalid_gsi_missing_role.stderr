@@ -1,7 +1,5 @@
-error: custom attribute panicked
- --> src/shouldnt_compile/invalid_gsi_missing_role.rs:3:1
+error: invalid gsi annotation; expected: gsi("name", hash_key | sort_key): expected `,`
+ --> src/shouldnt_compile/invalid_gsi_missing_role.rs:7:14
   |
-3 | #[aymond(item, table)]
-  | ^^^^^^^^^^^^^^^^^^^^^^
-  |
-  = help: message: Invalid GSI annotation. Expected: gsi("name", hash_key|sort_key): Error("expected `,`")
+7 |     #[aymond(gsi("by-model"))]
+  |              ^^^^^^^^^^^^^^^
