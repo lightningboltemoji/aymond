@@ -258,5 +258,40 @@ pub fn create_update_builder(item: &ItemDefinition) -> TokenStream {
                     .await
             }
         }
+
+        impl<'a> Into<#aws_sdk_dynamodb::types::Update> for #update_item_struct<'a> {
+            fn into(self) -> #aws_sdk_dynamodb::types::Update {
+                let (cond_expr, cond_names, cond_values) = self.cond.build();
+                let (update_expr, update_names, update_values) =
+                    self.expr.expect("update expression not set").build();
+
+                let mut names = ::std::collections::HashMap::new();
+                if let Some(cond_names) = cond_names {
+                    names.extend(cond_names);
+                }
+                names.extend(update_names);
+                let names = if names.is_empty() { None } else { Some(names) };
+
+                let mut values = ::std::collections::HashMap::new();
+                if let Some(cond_values) = cond_values {
+                    values.extend(cond_values);
+                }
+                values.extend(update_values);
+                let values = if values.is_empty() { None } else { Some(values) };
+
+                let table_name = &self.table.table_name;
+                #build_key_map
+
+                #aws_sdk_dynamodb::types::Update::builder()
+                    .table_name(table_name)
+                    .set_key(Some(key_values))
+                    .set_update_expression(Some(update_expr))
+                    .set_condition_expression(cond_expr)
+                    .set_expression_attribute_names(names)
+                    .set_expression_attribute_values(values)
+                    .build()
+                    .unwrap()
+            }
+        }
     }
 }

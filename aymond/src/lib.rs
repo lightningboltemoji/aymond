@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use aws_config::Region;
 use aws_credential_types::Credentials;
-use aws_sdk_dynamodb::types::{Delete, Put, TransactWriteItem};
+use aws_sdk_dynamodb::types::{Delete, Put, TransactWriteItem, Update};
 use aws_types::sdk_config::SharedCredentialsProvider;
 
 pub mod prelude {
@@ -19,6 +19,7 @@ pub struct Tx<'a> {
     client: &'a Aymond,
     put: Vec<Put>,
     delete: Vec<Delete>,
+    update: Vec<Update>,
 }
 
 pub struct Aymond {
@@ -68,6 +69,7 @@ impl<'a> Aymond {
             client: self,
             put: vec![],
             delete: vec![],
+            update: vec![],
         }
     }
 }
@@ -80,6 +82,11 @@ impl<'a> Tx<'a> {
 
     pub fn delete(mut self, delete: impl Into<Delete>) -> Self {
         self.delete.push(delete.into());
+        self
+    }
+
+    pub fn update(mut self, update: impl Into<Update>) -> Self {
+        self.update.push(update.into());
         self
     }
 
@@ -125,6 +132,9 @@ impl<'a> From<Tx<'a>> for Option<Vec<TransactWriteItem>> {
         }
         for d in val.delete {
             vec.push(TransactWriteItem::builder().delete(d).build());
+        }
+        for u in val.update {
+            vec.push(TransactWriteItem::builder().update(u).build());
         }
         Some(vec)
     }

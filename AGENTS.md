@@ -1,7 +1,3 @@
-# CLAUDE.md
-
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
 ## Project Overview
 
 **aymond** is a type-safe, batteries-included Rust client wrapper for AWS DynamoDB, inspired by the DynamoDB Enhanced Java Client. It uses procedural macros to generate compile-time-safe CRUD and query builders from annotated Rust structs.
@@ -15,16 +11,16 @@ Three crates:
 
 ## Commands
 
-```bash
-# Run integration tests
-cargo test -p aymond-test
+Don't declare anything 'finished' before running the following:
 
+```bash
 # Build all crates
 cargo build
-
-# Format and lint
+# Format/lint
 cargo fmt
 cargo clippy --fix --allow-dirty
+# Integration tests
+cargo test -p aymond-test
 ```
 
 ## Architecture

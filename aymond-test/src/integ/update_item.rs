@@ -103,3 +103,52 @@ async fn test_update_item_hash_key_only_table() {
         .expect("Item should exist");
     assert_eq!(res.value, 42);
 }
+
+#[tokio::test]
+async fn test_transaction_update_expression() {
+    use aymond::{Aymond, prelude::*};
+
+    #[aymond(item, table)]
+    struct Counter {
+        #[aymond(hash_key)]
+        id: String,
+        value: i32,
+    }
+
+    let aymond = Aymond::new_with_local_config("http://localhost:8000", "us-west-2");
+    let table = CounterTable::new(&aymond, "update_item_tx");
+    table.delete(false).await.expect("Failed to delete");
+    table.create(false).await.expect("Failed to create");
+
+    table
+        .put()
+        .item(Counter {
+            id: "tx-1".to_string(),
+            value: 1,
+        })
+        .send()
+        .await
+        .expect("Failed to write");
+
+    aymond
+        .tx()
+        .update(
+            table
+                .update()
+                .id("tx-1")
+                .expression(|e| e.value().add(41))
+                .condition(|c| c.value().eq(1)),
+        )
+        .send()
+        .await
+        .expect("Tx update should succeed");
+
+    let res = table
+        .get()
+        .id("tx-1")
+        .send()
+        .await
+        .expect("Get should succeed")
+        .expect("Item should exist");
+    assert_eq!(res.value, 42);
+}
