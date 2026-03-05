@@ -153,7 +153,7 @@ pub fn create_get_builder(item: &ItemDefinition) -> TokenStream {
                 -> #aws_sdk_dynamodb::operation::get_item::builders::GetItemFluentBuilder
             {
                 let consistent_read = self.consistent_read;
-                f(self.table.client.get_item().set_consistent_read(consistent_read))
+                f(self.table.aymond.client.get_item().set_consistent_read(consistent_read))
                     .table_name(&self.table.table_name)
                     .set_key(Some(self.into()))
                     .send()

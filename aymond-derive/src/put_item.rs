@@ -78,7 +78,7 @@ pub fn create_put_item_builder(item: &ItemDefinition) -> TokenStream {
                 let mut item = self.i.expect("item not set");
                 #increment_version
                 let (cond_expr, expr_name, expr_value) = self.cond.build();
-                let mut req = f(self.table.client.put_item())
+                let mut req = f(self.table.aymond.client.put_item())
                     .table_name(&self.table.table_name)
                     .set_item(Some(item.into()));
                 if cond_expr.is_some() {

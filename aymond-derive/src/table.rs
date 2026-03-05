@@ -63,10 +63,18 @@ pub fn create_table(item: &ItemDefinition) -> TokenStream {
         #batch_write
         #condition_check
 
-        #[derive(Debug)]
         pub struct #table_struct {
-            client: ::std::sync::Arc<#aws_sdk_dynamodb::Client>,
+            aymond: ::aymond::Aymond,
             table_name: String,
+        }
+
+        impl ::std::fmt::Debug for #table_struct {
+            fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+                f.debug_struct(stringify!(#table_struct))
+                    .field("aymond", &self.aymond)
+                    .field("table_name", &self.table_name)
+                    .finish()
+            }
         }
 
         impl<'a> Table<'a, #name, #get_item_struct<'a>, #get_item_hash_key_struct<'a>, #put_item_struct<'a>, #update_item_struct<'a>, #update_item_hash_key_struct<'a>, #query_struct<'a>, #query_hash_key_struct<'a>, #scan_struct<'a>, #batch_get_struct<'a>, #delete_item_struct<'a>, #delete_item_hash_key_struct<'a>, #batch_write_struct<'a>, #condition_check_struct<'a>, #condition_check_hash_key_struct<'a>> for #table_struct {
@@ -77,7 +85,7 @@ pub fn create_table(item: &ItemDefinition) -> TokenStream {
             ) -> Self {
                 Self {
                     table_name: table_name.into(),
-                    client: client.client.clone(),
+                    aymond: client.clone(),
                 }
             }
 
@@ -89,7 +97,7 @@ pub fn create_table(item: &ItemDefinition) -> TokenStream {
                     #aws_sdk_dynamodb::config::http::HttpResponse
                 >
             > {
-                let res = self.client.delete_table()
+                let res = self.aymond.client.delete_table()
                     .table_name(&self.table_name)
                     .send();
                 match res.await {

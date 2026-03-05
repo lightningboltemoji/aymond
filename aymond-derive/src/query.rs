@@ -321,7 +321,7 @@ pub fn create_query_builder(
                 let scan_index_forward = self.scan_index_forward;
                 let limit = self.limit;
                 let consistent_read = self.consistent_read;
-                let query = self.table.client.query();
+                let query = self.table.aymond.client.query();
                 let table_name = &self.table.table_name;
                 let (key_expr, attr_names, attr_values) = self.into();
                 let pagination = query
@@ -361,6 +361,7 @@ pub fn create_query_builder(
                 let consistent_read = self.consistent_read;
                 let query = f(
                     self.table
+                        .aymond
                         .client
                         .query()
                         .set_scan_index_forward(scan_index_forward)

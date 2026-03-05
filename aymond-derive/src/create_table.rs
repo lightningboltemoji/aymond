@@ -154,7 +154,7 @@ pub fn create_create_method(def: &ItemDefinition) -> TokenStream {
                 #aws_sdk_dynamodb::config::http::HttpResponse
             >
         > {
-            let res = self.client.create_table()
+            let res = self.aymond.client.create_table()
                 .table_name(&self.table_name)
                 .set_key_schema(Some(#name::key_schemas()))
                 .set_attribute_definitions(Some(vec![

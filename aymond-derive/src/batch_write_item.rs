@@ -206,7 +206,7 @@ pub fn create_batch_write_builder(item: &ItemDefinition) -> TokenStream {
 
                     loop {
                         let request_items = pending;
-                        let res = self.table.client.batch_write_item()
+                        let res = self.table.aymond.client.batch_write_item()
                             .request_items(&self.table.table_name, request_items)
                             .send()
                             .await?;
@@ -218,15 +218,15 @@ pub fn create_batch_write_builder(item: &ItemDefinition) -> TokenStream {
                             });
 
                         match has_unprocessed {
-                            Some(unprocessed) if retries < 5 => {
-                                pending = unprocessed;
-                                retries += 1;
-                                ::aymond::shim::tokio::time::sleep(
-                                    ::std::time::Duration::from_millis(50 * (1 << retries))
-                                ).await;
-                            }
-                            Some(_) => {
-                                panic!("batch_write_item: unprocessed items remain after 5 retries");
+                            Some(unprocessed) => {
+                                match (self.table.aymond.retry_strategy)(retries) {
+                                    Some(duration) => {
+                                        pending = unprocessed;
+                                        retries += 1;
+                                        ::aymond::shim::tokio::time::sleep(duration).await;
+                                    }
+                                    None => panic!("batch_write_item: unprocessed items remain after max retries"),
+                                }
                             }
                             None => {
                                 break;
@@ -252,7 +252,7 @@ pub fn create_batch_write_builder(item: &ItemDefinition) -> TokenStream {
                 F: FnOnce(#aws_sdk_dynamodb::operation::batch_write_item::builders::BatchWriteItemFluentBuilder)
                     -> #aws_sdk_dynamodb::operation::batch_write_item::builders::BatchWriteItemFluentBuilder
             {
-                f(self.table.client.batch_write_item())
+                f(self.table.aymond.client.batch_write_item())
                     .request_items(&self.table.table_name, self.ops)
                     .send()
                     .await

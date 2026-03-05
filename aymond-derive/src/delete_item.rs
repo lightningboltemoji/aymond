@@ -175,7 +175,7 @@ pub fn create_delete_builder(item: &ItemDefinition) -> TokenStream {
             {
                 let (cond_expr, expr_name, expr_value) = self.cond.build();
                 let table_name = &self.table.table_name;
-                let client = &self.table.client;
+                let client = &self.table.aymond.client;
                 #build_key_map
                 let mut req = f(client.delete_item())
                     .table_name(table_name)

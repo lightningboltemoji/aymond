@@ -109,7 +109,7 @@ pub fn create_batch_get_builder(item: &ItemDefinition) -> TokenStream {
                             .build()
                             .unwrap();
 
-                        let res = self.table.client.batch_get_item()
+                        let res = self.table.aymond.client.batch_get_item()
                             .request_items(&self.table.table_name, keys_and_attrs)
                             .send()
                             .await?;
@@ -130,15 +130,15 @@ pub fn create_batch_get_builder(item: &ItemDefinition) -> TokenStream {
                             });
 
                         match has_unprocessed {
-                            Some(unprocessed) if retries < 5 => {
-                                pending_keys = unprocessed;
-                                retries += 1;
-                                ::aymond::shim::tokio::time::sleep(
-                                    ::std::time::Duration::from_millis(50 * (1 << retries))
-                                ).await;
-                            }
-                            Some(_) => {
-                                panic!("batch_get_item: unprocessed keys remain after 5 retries");
+                            Some(unprocessed) => {
+                                match (self.table.aymond.retry_strategy)(retries) {
+                                    Some(duration) => {
+                                        pending_keys = unprocessed;
+                                        retries += 1;
+                                        ::aymond::shim::tokio::time::sleep(duration).await;
+                                    }
+                                    None => panic!("batch_get_item: unprocessed keys remain after max retries"),
+                                }
                             }
                             None => {
                                 break;
@@ -169,7 +169,7 @@ pub fn create_batch_get_builder(item: &ItemDefinition) -> TokenStream {
                     .build()
                     .unwrap();
 
-                f(self.table.client.batch_get_item())
+                f(self.table.aymond.client.batch_get_item())
                     .request_items(&self.table.table_name, keys_and_attrs)
                     .send()
                     .await

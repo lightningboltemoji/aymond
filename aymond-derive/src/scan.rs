@@ -24,7 +24,7 @@ pub fn create_scan_builder(item: &ItemDefinition) -> TokenStream {
                 #aws_sdk_dynamodb::operation::scan::ScanError,
                 #aws_sdk_dynamodb::config::http::HttpResponse
             >>> + 'a {
-                let pagination = self.table.client.scan()
+                let pagination = self.table.aymond.client.scan()
                     .table_name(&self.table.table_name)
                     .into_paginator()
                     .items()
@@ -48,7 +48,7 @@ pub fn create_scan_builder(item: &ItemDefinition) -> TokenStream {
                 F: FnOnce(#aws_sdk_dynamodb::operation::scan::builders::ScanFluentBuilder)
                     -> #aws_sdk_dynamodb::operation::scan::builders::ScanFluentBuilder,
             {
-                f(self.table.client.scan())
+                f(self.table.aymond.client.scan())
                     .table_name(&self.table.table_name)
                     .send()
                     .await

@@ -411,6 +411,7 @@ dependencies = [
  "aws-sdk-dynamodb",
  "aws-types",
  "aymond-derive",
+ "fastrand",
  "futures",
  "tokio",
 ]

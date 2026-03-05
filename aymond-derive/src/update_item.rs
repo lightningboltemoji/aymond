@@ -244,7 +244,7 @@ pub fn create_update_builder(item: &ItemDefinition) -> TokenStream {
                 let values = if values.is_empty() { None } else { Some(values) };
 
                 let table_name = &self.table.table_name;
-                let client = &self.table.client;
+                let client = &self.table.aymond.client;
                 #build_key_map
 
                 f(client.update_item())

@@ -6,11 +6,13 @@ use aws_sdk_dynamodb::types::{ConditionCheck, Delete, Put, TransactWriteItem, Up
 use aws_types::sdk_config::SharedCredentialsProvider;
 
 pub mod prelude {
+    pub use crate::retry::{ExponentialBackoff, RetryStrategy};
     pub use crate::traits::{Item, NestedItem, Table};
     pub use aymond_derive::aymond;
 }
 
 pub mod condition;
+pub mod retry;
 pub mod shim;
 pub mod traits;
 pub mod update;
@@ -22,6 +24,25 @@ pub struct Tx<'a> {
 
 pub struct Aymond {
     pub client: Arc<aws_sdk_dynamodb::Client>,
+    pub retry_strategy: retry::RetryStrategy,
+}
+
+impl Clone for Aymond {
+    fn clone(&self) -> Self {
+        Self {
+            client: self.client.clone(),
+            retry_strategy: self.retry_strategy.clone(),
+        }
+    }
+}
+
+impl std::fmt::Debug for Aymond {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Aymond")
+            .field("client", &self.client)
+            .field("retry_strategy", &"<closure>")
+            .finish()
+    }
 }
 
 impl<'a> Aymond {
@@ -59,7 +80,15 @@ impl<'a> Aymond {
     }
 
     pub fn new_with_client(client: ::std::sync::Arc<aws_sdk_dynamodb::Client>) -> Self {
-        Self { client }
+        Self {
+            client,
+            retry_strategy: retry::default_retry_strategy(),
+        }
+    }
+
+    pub fn with_retry_strategy(mut self, s: retry::RetryStrategy) -> Self {
+        self.retry_strategy = s;
+        self
     }
 
     pub fn tx(&'a self) -> Tx<'a> {
