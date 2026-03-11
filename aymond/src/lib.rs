@@ -12,6 +12,7 @@ pub mod prelude {
 }
 
 pub mod condition;
+pub mod error;
 pub mod retry;
 pub mod shim;
 pub mod traits;

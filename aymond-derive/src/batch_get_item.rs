@@ -90,9 +90,8 @@ pub fn create_batch_get_builder(item: &ItemDefinition) -> TokenStream {
 
             pub async fn send(self) -> Result<
                 Vec<#item_struct>,
-                #aws_sdk_dynamodb::error::SdkError<
+                ::aymond::error::BatchError<
                     #aws_sdk_dynamodb::operation::batch_get_item::BatchGetItemError,
-                    #aws_sdk_dynamodb::config::http::HttpResponse,
                 >,
             > {
                 let mut all_results: Vec<#item_struct> = Vec::new();
@@ -137,7 +136,9 @@ pub fn create_batch_get_builder(item: &ItemDefinition) -> TokenStream {
                                         retries += 1;
                                         ::aymond::shim::tokio::time::sleep(duration).await;
                                     }
-                                    None => panic!("batch_get_item: unprocessed keys remain after max retries"),
+                                    None => return Err(::aymond::error::BatchError::RetriesExhausted {
+                                        message: "batch_get_item: unprocessed keys remain after max retries".to_string(),
+                                    }),
                                 }
                             }
                             None => {

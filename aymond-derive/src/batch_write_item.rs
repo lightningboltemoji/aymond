@@ -195,9 +195,8 @@ pub fn create_batch_write_builder(item: &ItemDefinition) -> TokenStream {
 
             pub async fn send(self) -> Result<
                 (),
-                #aws_sdk_dynamodb::error::SdkError<
+                ::aymond::error::BatchError<
                     #aws_sdk_dynamodb::operation::batch_write_item::BatchWriteItemError,
-                    #aws_sdk_dynamodb::config::http::HttpResponse,
                 >,
             > {
                 for chunk in self.ops.chunks(25) {
@@ -225,7 +224,9 @@ pub fn create_batch_write_builder(item: &ItemDefinition) -> TokenStream {
                                         retries += 1;
                                         ::aymond::shim::tokio::time::sleep(duration).await;
                                     }
-                                    None => panic!("batch_write_item: unprocessed items remain after max retries"),
+                                    None => return Err(::aymond::error::BatchError::RetriesExhausted {
+                                        message: "batch_write_item: unprocessed items remain after max retries".to_string(),
+                                    }),
                                 }
                             }
                             None => {
