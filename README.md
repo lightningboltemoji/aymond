@@ -199,6 +199,60 @@ let _: Result<(), _> = aymond
     .await;
 ```
 
+#### Secondary indexes
+
+Items can define Global Secondary Indexes (GSI) and Local Secondary Indexes (LSI) using the `#[aymond(gsi(...))]` and `#[aymond(lsi(...))]` attributes:
+
+```rust
+#[aymond(item, table)]
+struct Comment {
+    #[aymond(hash_key)]
+    post_id: String,
+
+    #[aymond(sort_key)]
+    comment_id: String,
+
+    #[aymond(gsi("by-author", hash_key))]
+    author_id: String,
+
+    #[aymond(gsi("by-author", sort_key))]
+    #[aymond(lsi("by-timestamp"))]
+    timestamp: i64,
+
+    body: String,
+}
+```
+
+GSI fields require both a name and a role (`hash_key` or `sort_key`). LSI fields only require a name -- the field becomes the sort key, and the table's primary hash key is reused. A field can participate in multiple indexes.
+
+When the table is created with `table.create(false).await`, the indexes are automatically included.
+
+Querying indexes uses generated methods named after the index:
+
+```rust
+// Query the "by-author" GSI
+let results: Vec<Comment> = table
+    .query_by_author()
+    .author_id("user-4f92a")
+    .timestamp_gt(1700000000)
+    .send()
+    .await
+    .map(|e| e.ok().unwrap())
+    .collect()
+    .await;
+
+// Query the "by-timestamp" LSI
+let results: Vec<Comment> = table
+    .query_by_timestamp()
+    .post_id("post-8bc31")
+    .timestamp_gt(1700000000)
+    .send()
+    .await
+    .map(|e| e.ok().unwrap())
+    .collect()
+    .await;
+```
+
 #### Optimistic locking
 
 Items can define a `#[aymond(version)]` attribute:
